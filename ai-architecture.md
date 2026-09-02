@@ -292,7 +292,7 @@ User: {brief from NGO}
 ```typescript
 const CopilotDraftSchema = z.object({
   title: z.string().min(5).max(200),
-  category: z.string().min(20).max(2000),
+  category: z.string().min(2).max(50),
   description: z.string().min(20).max(2000),
   required_skills: z.array(z.string()).min(1).max(20),
   responsibilities: z.array(z.string()).min(1).max(20),

@@ -246,7 +246,6 @@ Execute operation
 
   * `full_name`
   * `age`
-  * `gender`
   * `skills`
   * `interests`
   * `experience`
@@ -254,10 +253,12 @@ Execute operation
   * `location_lat`
   * `location_lng`
   * `onboarding_complete`
+  * No `gender` field on the volunteer profile — a gender-based project restriction, if ever needed, is expressed as free text in a project's `eligibility.custom_requirements` (Phase 4), not stored on the volunteer.
 * NGO fields include:
 
   * organization details
   * `logo_url`
+  * `categories`
   * `onboarding_complete`
 * No NGO profile location fields
 

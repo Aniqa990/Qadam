@@ -171,9 +171,7 @@ Get the authenticated NGO's organization profile.
     "mission": "Quality education for every child",
     "website": "https://efa.org",
     "phone": "+1234567890",
-    "location_name": "Jeddah, Saudi Arabia",
-    "location_lat": 21.4858,
-    "location_lng": 39.1925,
+    "categories": ["education", "youth"],
     "onboarding_complete": true,
     "created_at": "2026-09-01T00:00:00Z"
   }
@@ -198,10 +196,7 @@ Create or update the NGO profile (onboarding).
   "website": "https://efa.org",
   "phone": "+1234567890",
   "categories": ["education", "youth"],
-  "registration_number": "NGO-2024-001",
-  "location_name": "Jeddah, Saudi Arabia",
-  "location_lat": 21.4858,
-  "location_lng": 39.1925
+  "registration_number": "NGO-2024-001"
 }
 ```
 
@@ -232,7 +227,7 @@ List all NGOs with completed onboarding (public directory).
 
 **Auth:** Required (any role)
 
-**Query:** `?page=1&limit=20&category=education&search=health`
+**Query:** `?page=1&limit=20&categories=education&search=health`
 
 **Response (200):** Paginated list of NGO summary objects.
 
@@ -332,7 +327,7 @@ Get full project details.
     "category": "education",
     "required_skills": ["teaching", "mentoring"],
     "responsibilities": ["Tutor students in math", "Prepare lesson plans"],
-    "eligibility": { "min_age": 18, "required_languages": ["en"] },
+    "eligibility": { "min_age": 18, "custom_requirements": [] },
     "capacity": 20,
     "whatsapp_group_url": "https://chat.whatsapp.com/example",
     "registered_count": 12,
@@ -846,6 +841,7 @@ Generate a structured project draft from a natural-language brief. **Never write
   "data": {
     "title": "Jeddah Beach Cleanup",
     "description": "Join us for a weekend beach cleanup initiative focused on...",
+    "category": "environment",
     "required_skills": ["physical fitness", "teamwork"],
     "responsibilities": [
       "Collect and sort beach trash and debris",

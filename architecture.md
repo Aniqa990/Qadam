@@ -298,7 +298,7 @@ POST /api/ai/assistant/chat { message }
 ### QR Attendance
 
 ```
-1. NGO generates QR: GET /api/attendance/:eventId/qr
+1. NGO generates QR: GET /api/attendance/events/:eventId/qr
     → Backend creates time-limited token, stores in DB
     → Returns token → frontend renders QR code
 

@@ -45,7 +45,7 @@ Clerk (external identity)
 ```sql
 CREATE TYPE user_role AS ENUM ('volunteer', 'ngo');
 CREATE TYPE project_status AS ENUM ('draft', 'published', 'active', 'completed', 'cancelled');
-CREATE TYPE registration_status AS ENUM ('confirmed', 'cancelled', 'waitlisted');
+CREATE TYPE registration_status AS ENUM ('confirmed', 'cancelled');
 CREATE TYPE document_status AS ENUM ('uploaded', 'processing', 'ready', 'failed');
 ```
 
@@ -96,7 +96,7 @@ Organization profile for NGO users. Links 1:1 to a Clerk identity via `auth_user
 | `email`            | `TEXT`           | NOT NULL, UNIQUE                     | Contact email               |
 | `description`      | `TEXT`           |                                      | Organization description    |
 | `logo_url`         | `TEXT`           |                                      | Optional NGO logo URL |
-| `category`      | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
+| `categories`    | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
 | `mission`          | `TEXT`           |                                      | Mission statement           |
 | `website`          | `TEXT`           |                                      |                             |
 | `phone`            | `TEXT`           |                                      |                             |
@@ -108,6 +108,7 @@ Organization profile for NGO users. Links 1:1 to a Clerk identity via `auth_user
 **Indexes:**
 - `idx_ngos_auth_user_id` — UNIQUE on `auth_user_id`
 - `idx_ngos_email` — UNIQUE on `email`
+- `idx_ngos_categories` — GIN on `categories`
 
 ---
 
@@ -145,11 +146,13 @@ Projects created by NGOs with a status lifecycle.
 ```json
 {
   "min_age": 18,
-  "requires_background_check": false,
-  "required_languages": ["en"],
   "custom_requirements": ["Must have first-aid certification"]
 }
 ```
+
+`min_age` and `custom_requirements` are the only enforced eligibility fields for MVP — `min_age` is checked server-side at registration and by the matching deterministic filter; `custom_requirements` is free text shown to volunteers (e.g. "requires a background check", "must speak Urdu") but not machine-validated. Do not add other structured eligibility keys (e.g. a separate `requires_background_check` boolean or `required_languages` array) unless registration validation, matching, and the Copilot schema are all updated to enforce them — an unenforced key is a silent no-op.
+
+Note: `volunteers` has no `gender` column. Any gender-based project eligibility (e.g. "open to female volunteers only") is expressed as free text inside `custom_requirements`, not as a dedicated schema field or filter.
 
 **Indexes:**
 - `idx_projects_ngo_id` — on `ngo_id`
