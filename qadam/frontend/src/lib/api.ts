@@ -1,17 +1,22 @@
 /**
- * Thin fetch wrapper for talking to the Express backend. Auth headers get
- * attached here once Clerk's useAuth().getToken() is wired in (Phase 2) -
- * components should call these helpers instead of using fetch directly, so
- * business/auth logic never leaks into React components (see AGENTS.md).
+ * Thin fetch wrapper for talking to the Express backend. `token` is a
+ * Clerk session token from useAuth().getToken() - components should go
+ * through the useApi() hook (hooks/useApi.ts) rather than calling this
+ * directly, so auth/business logic never leaks into components (AGENTS.md).
  */
 const API_BASE_URL = "/api";
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit & { token?: string | null }
+): Promise<T> {
+  const { token, ...rest } = init ?? {};
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
+    ...rest,
     headers: {
       "Content-Type": "application/json",
-      ...init?.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...rest.headers,
     },
   });
 
