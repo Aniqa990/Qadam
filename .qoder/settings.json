@@ -1,7 +1,6 @@
 {
   "enabledPlugins": {
     "vercel@qoder-marketplace": true,
-    "supabase@qoder-marketplace": true,
     "design-review@qoder-marketplace": true,
     "qmind-knowledge@qoder-marketplace": true
   }
