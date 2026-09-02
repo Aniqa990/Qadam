@@ -21,12 +21,12 @@ Use a modular monolithic architecture.
 
 Use:
 
-React
-TypeScript
-Vite
-React Router
-Tailwind CSS
-shadcn/ui
+* React
+* TypeScript
+* Vite
+* React Router
+* Tailwind CSS
+* shadcn/ui
 
 The React application communicates with the backend exclusively through HTTP REST APIs.
 
@@ -34,20 +34,20 @@ Do not put business logic, authorization logic, AI API calls, or database access
 
 React is responsible for:
 
-UI
-user interaction
-local UI state
-form handling
-displaying API results
-browser APIs such as camera access for QR scanning
+* UI
+* user interaction
+* local UI state
+* form handling
+* displaying API results
+* browser APIs such as camera access for QR scanning
 
 # Backend:
 
 Use:
 
-Node.js
-TypeScript
-Express
+* Node.js
+* TypeScript
+* Express
 
 The Node.js backend is the single application backend and AI orchestration layer.
 
@@ -56,31 +56,58 @@ Organize backend code by domain rather than by technical type.
 Preferred structure:
 
 backend/
+
+
     src/
+
+
         config/
+
+
         middleware/
+
+
         modules/
+
+
             auth/
+
             volunteers/
+
             ngos/
+
             projects/
+
             registrations/
+
             attendance/
+
             matching/
+
             ai/
+
             knowledge/
+
         lib/
+
+
         utils/
+
+
         app.ts
+
+
         server.ts
+
+
 
 Each module should contain its relevant:
 
-routes
-controllers
-services
-validation schemas
-types
+* routes
+* controllers
+* services
+* validation schemas
+* types
 
 Do not create separate servers for matching, RAG, AI, or attendance.
 
@@ -90,10 +117,10 @@ Use Supabase PostgreSQL as the primary database.
 
 Use:
 
-PostgreSQL
-Supabase Auth
-Supabase Storage
-pgvector
+* PostgreSQL
+* Clerk (authentication — see "Clerk Auth Migration" below; Supabase Auth is no longer used)
+* Supabase Storage
+* pgvector
 
 PostgreSQL is the source of truth.
 
@@ -103,17 +130,36 @@ Use foreign keys, unique constraints, check constraints, and indexes where appro
 
 Never trust client-supplied:
 
-user IDs
-NGO IDs
-project IDs
-registration IDs
-attendance IDs
+* user IDs
+* NGO IDs
+* project IDs
+* registration IDs
+* attendance IDs
 
 Derive authenticated user identity from the authenticated request on the backend.
 
 Authorization must always be checked server-side.
 
 Use Row Level Security where appropriate.
+
+Store `skills` and `interests` as `TEXT[]` with GIN indexes, not normalized lookup tables, for MVP — see "Skills/interests: arrays vs normalized tables" discussion. Revisit only if the product needs admin-curated taxonomies, multi-language labels, or skill-level analytics.
+
+Location fields (`location_name`) must be stored as `"City, Country"` (e.g. `"Karachi, Pakistan"`), not a bare city or country. Always store the exact pinned coordinates (`location_lat`/`location_lng`) from a map picker alongside it — never derive coordinates from a city centroid lookup. Use OpenStreetMap for both directions: Nominatim for reverse-geocoding the dropped pin into a `"City, Country"` string, and `react-leaflet` with OSM tile layers for the pin-drop UI on the frontend. Respect Nominatim's usage policy (max ~1 req/sec, custom `User-Agent` header) — cache the reverse-geocode result on the row rather than re-querying it.
+
+## Clerk Auth Migration
+
+Auth moves from Supabase Auth to Clerk. This changes identity, not authorization — every existing "authenticate → resolve user → authorize" rule in this document still applies.
+
+Frontend: use `@clerk/clerk-react` (`<ClerkProvider>`, `<SignIn>`, `<SignUp>`, `useAuth()`). Clerk owns sign-up, sign-in, session refresh, and MFA — the previous `/api/auth/signup|login|refresh` endpoints are removed.
+
+Backend: verify the Clerk session token on every protected request using `@clerk/backend` (or `clerk-sdk-node`'s Express middleware), not a hand-rolled JWT check. The verified token's `sub` claim is the Clerk user ID — store it in `volunteers.auth_user_id` / `ngos.auth_user_id` as `TEXT` (Clerk IDs look like `user_2abc...`, not UUIDs; drop the `FK → auth.users` since that table no longer exists). Role (`volunteer` | `ngo`) is stored in Clerk's `publicMetadata`, set once at sign-up via a Clerk webhook (`user.created`) that also creates the matching `volunteers`/`ngos` row.
+
+Pick one RLS strategy and apply it consistently — do not mix them:
+
+1. **Preferred: Supabase native third-party auth for Clerk.** Configure Clerk as a third-party auth provider in the Supabase dashboard. Supabase then accepts Clerk-issued JWTs directly; RLS policies read the Clerk user ID via `(auth.jwt()->>'sub')` in place of `auth.uid()`. This keeps RLS as real defense-in-depth with the least custom code — just swap `auth.uid()` for `(auth.jwt()->>'sub')` throughout the policies in database-schema.md.
+2. **Simpler fallback: backend-only authorization.** All Express requests already use the service-role Supabase client after Clerk verification, so RLS never actually applies to backend traffic. In this mode, keep RLS enabled with default-deny policies (protects against a leaked anon key) but treat the Express "authenticate → resolve user → authorize" pipeline as the real authorization boundary, since option 1 requires wiring up Supabase's third-party auth config which is extra setup for a hackathon MVP.
+
+Recommendation: start with option 2 (you already enforce authorization server-side per request; RLS was always a second layer, not the primary one) and move to option 1 later if direct-from-browser Supabase queries are ever needed.
 
 ## Backend Security
 
@@ -131,12 +177,12 @@ Never use VITE_ environment variables for secrets.
 
 All protected API endpoints must:
 
-Authenticate the request.
-Determine the authenticated user.
-Verify authorization.
-Validate request input.
-Perform the operation.
-Return only authorized data.
+* Authenticate the request.
+* Determine the authenticated user.
+* Verify authorization.
+* Validate request input.
+* Perform the operation.
+* Return only authorized data.
 
 Use Zod for API input validation.
 
@@ -146,11 +192,13 @@ Use only free resources.
 
 Primary AI providers:
 
-Gemini API for LLM generation
-Hugging Face Inference API for embeddings
-Supabase pgvector for vector storage and similarity search
+* Gemini API (free tier) for LLM generation, with Alibaba Cloud DashScope's Qwen (free-tier models, OpenAI-compatible endpoint) as an automatic fallback when Gemini errors, times out, or is rate-limited
+* Hugging Face Inference API for embeddings
+* Supabase pgvector for vector storage and similarity search
 
 Do not use paid AI APIs.
+
+`gemini.service.ts` and a new `qwen.service.ts` must implement the same internal interface (e.g. `generate(prompt, options) -> string`). `copilot.service.ts` and `rag.service.ts` call a thin `llm.service.ts` wrapper that tries Gemini first and falls back to Qwen on failure, logging which provider actually served the request. Never let the caller (routes/controllers) know or care which provider answered — that defeats the point of the abstraction. Structured-output validation (Zod) applies identically regardless of which provider produced the response, since prompt/response shape must stay provider-agnostic.
 
 Do not run or download Hugging Face embedding models inside the Node.js server.
 
@@ -161,11 +209,17 @@ Keep AI providers behind service abstractions.
 Example:
 
 ai/
+
     services/
+
         gemini.service.ts
+
         embedding.service.ts
+
         rag.service.ts
+
         copilot.service.ts
+
         matching.service.ts
 
 The rest of the application should not directly call Gemini or Hugging Face.
@@ -209,6 +263,31 @@ Handle:
 Gracefully.
 
 Never allow an AI failure to corrupt core application data.
+
+## AI Assistant Surfaces (UI Placement)
+
+Qadam ships exactly two AI-facing surfaces in the UI. Do not create a third, and do not merge these two into one chat window.
+
+1. Global Knowledge Assistant (floating widget)
+A single floating chat icon, fixed to a bottom corner of the viewport, mounted once at the app-shell/layout level (not per-page).
+Visible to both authenticated roles: Volunteer and NGO.
+Opens a popup/side-panel chat window on click. Does not navigate away from the current page.
+Backend contract: POST /api/ai/assistant/chat
+Volunteer callers: answers general platform questions and questions about public NGO/project data.
+NGO callers: Grounded in that NGO's own uploaded knowledge base (RAG over their documents) and their own verified impact metrics.
+Always resolves the caller's role and identity server-side from the authenticated session — never from a client-supplied flag.
+Internally may route to rag.service.ts (knowledge questions) and/or a lightweight metrics-summary path (impact questions), but the client only ever calls this one endpoint.
+This surface never creates, edits, or publishes a project. It is read/answer-only.
+
+2. Project Copilot (in-flow only)
+Lives only inside the NGO's "Create Project" / "Edit Project" screen, as an inline panel or drawer next to the project form — not in the floating widget, not on any other page.
+Visible only to authenticated NGO users, only within that flow.
+Backend contract: POST /api/ai/copilot/draft
+Accepts a short natural-language brief, returns a Zod-validated structured draft (title, description, required skills, responsibilities, eligibility, capacity).
+Never writes to the database. The NGO must review, optionally edit, then explicitly Approve, which triggers the normal project-create/update endpoint.
+copilot.service.ts and rag.service.ts may both depend on the same gemini.service.ts and embedding.service.ts, but the two HTTP endpoints above stay separate because their auth scope, grounding data, and side effects differ.
+
+Marketing/UI copy may still refer to this collectively as "the Qadam AI Assistant" — that branding is a presentation choice and does not change the two-endpoint, two-surface backend split above.
 
 ## Matching
 
@@ -258,20 +337,33 @@ Matching must be explainable.
 
 Expose reasons such as:
 
-matching skills
-matching interests
-previous experience
-availability
-distance
-project relevance
+* matching skills
+* matching interests
+* previous experience
+* availability
+* distance
+* project relevance
 
 Do not use an LLM as the primary ranking mechanism.
+
+### Composite scoring weights
+
+Only candidates that already pass deterministic filtering are scored. Composite score is a weighted sum:
+
+* distance: 0.35 (highest weight — nearby matches should generally outrank far-away semantically-perfect ones)
+* skills match: 0.30
+* interests match: 0.15
+* embedding similarity: 0.20
+
+`distance_score = 1 / (1 + distance_km)`. If either party has no coordinates, drop the distance term and renormalize the remaining weights proportionally rather than defaulting distance to 0 or 1.
+
+Tune these constants centrally (a single config object in `matching.service.ts`), not inline per call site.
 
 ## NGO Knowledge RAG
 
 NGO knowledge RAG uses:
 
-* Supabase Storage for source documents.
+* Supabase Storage for source documents — single `knowledge` bucket, path-scoped as `knowledge/{ngo_id}/{document_id}/{file_name}`. Do not create a bucket per NGO: buckets are an infra-provisioning concept, not a data-partitioning one, and a per-NGO bucket buys nothing here since access control is already enforced by the `knowledge_documents.ngo_id` column, backend authorization, and (optionally) a Storage RLS policy matching the `{ngo_id}` path segment against the caller's NGO id.
 * Node.js for ingestion orchestration.
 * Text extraction.
 * Chunking.
@@ -282,19 +374,19 @@ NGO knowledge RAG uses:
 Document ingestion:
 
 document
-→ text extraction
-→ chunking
-→ embeddings
-→ pgvector
+* → text extraction
+* → chunking
+* → embeddings
+* → pgvector
 
 Question answering:
 
 question
-→ question embedding
-→ pgvector similarity search
-→ relevant chunks
-→ Gemini
-→ answer
+* → question embedding
+* → pgvector similarity search
+* → relevant chunks
+* → Gemini
+* → answer
 
 The generated answer must be grounded only in retrieved NGO knowledge when answering knowledge-base questions.
 
@@ -304,10 +396,11 @@ Never invent NGO policies or facts.
 
 If the retrieved context is insufficient, the assistant should say that the available NGO knowledge does not contain enough information.
 
-For MVP, document ingestion should be bounded by reasonable file size/page limits.
+For MVP, document ingestion should be bounded by reasonable file size/page limits (10 MB max, enforced by `chk_knowledge_file_size`).
 
-Do not process arbitrarily large documents in a single synchronous HTTP request.
+Do not process arbitrarily large documents in a single synchronous HTTP request. `POST /api/knowledge/documents` returns `201` immediately after the file is stored (`status: 'uploaded'`), then kicks off ingestion out-of-band within the same Node process (e.g. `setImmediate`/a fire-and-forget async function — no queue, no worker process needed for MVP). The document row's `status` column is the source of truth (`uploaded → processing → ready|failed`); the frontend polls `GET /api/knowledge/documents` (or a `GET /api/knowledge/documents/:id`) every few seconds while status is `processing`. This avoids both a 30+ second blocked request and any new infrastructure.
 
+This RAG capability is surfaced only through the Global Knowledge Assistant widget described above — see "AI Assistant Surfaces".
 
 ## Attendance
 
@@ -340,6 +433,10 @@ Never allow the client to directly mark attendance as verified.
 Attendance is stored in PostgreSQL.
 
 Attendance is the source of truth for verified volunteer participation.
+
+QR payload encodes both `event_id` and `token` (e.g. `qadam://attendance/{event_id}/{token}`), not the token alone. This lets the client fail fast with a clear "wrong event" error before hitting the network, and lets the backend do an indexed `WHERE event_id = $1 AND token = $2` lookup instead of a token-only scan. Still re-validate everything server-side (token match, window, duplicate check) — the client-supplied `event_id` is only a lookup hint, never trusted for authorization.
+
+No hard cap on attendance events (sessions) per project for MVP — a multi-day project naturally needs one per day. If abuse becomes a concern later, add a soft limit (e.g. flag for review past 30 events/project) rather than a hard block.
 
 ## Coding style
 
@@ -427,22 +524,31 @@ Do not require exact natural-language output from Gemini in tests.
 
 Use:
 
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+* SUPABASE_URL=
+* SUPABASE_SERVICE_ROLE_KEY=
 
-GEMINI_API_KEY=
-GEMINI_MODEL=
+* CLERK_PUBLISHABLE_KEY=
+* CLERK_SECRET_KEY=
+* CLERK_WEBHOOK_SECRET=
 
-HF_TOKEN=
-HF_EMBEDDING_MODEL=
+* GEMINI_API_KEY=
+* GEMINI_MODEL=
 
-Frontend .env may contain only public configuration.
+* DASHSCOPE_API_KEY=
+* QWEN_MODEL=
+
+* HF_TOKEN=
+* HF_EMBEDDING_MODEL=
+
+Frontend .env may contain only public configuration: `VITE_SUPABASE_URL` and `VITE_CLERK_PUBLISHABLE_KEY`. (Note: `SUPABASE_ANON_KEY` is no longer needed on the frontend once the frontend never talks to Supabase directly — all data access goes through the Express API.)
 
 Never place:
 
 * SUPABASE_SERVICE_ROLE_KEY
+* CLERK_SECRET_KEY
+* CLERK_WEBHOOK_SECRET
 * GEMINI_API_KEY
+* DASHSCOPE_API_KEY
 * HF_TOKEN
 
 in frontend environment variables.

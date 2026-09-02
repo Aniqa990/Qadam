@@ -1,0 +1,1128 @@
+# API Contracts
+
+## General Conventions
+
+- **Base URL:** `/api`
+- **Authentication:** `Authorization: Bearer <clerk_session_token>` on all protected endpoints (verified backend-side with Clerk's Node SDK)
+- **Content-Type:** `application/json`
+- **Pagination:** `?page=1&limit=20` (default limit 20, max 100)
+
+### Standard Response Envelope
+
+**Success:**
+```json
+{ "success": true, "data": { ... } }
+```
+
+**Success (list):**
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "pagination": { "page": 1, "limit": 20, "total": 45, "totalPages": 3 }
+}
+```
+
+**Error:**
+```json
+{ "success": false, "error": { "code": "NOT_FOUND", "message": "Project not found", "details": [] } }
+```
+
+### HTTP Status Codes
+
+| Code | Meaning              |
+|------|----------------------|
+| 200  | Success              |
+| 201  | Created              |
+| 400  | Validation error     |
+| 401  | Not authenticated    |
+| 403  | Not authorized       |
+| 404  | Resource not found   |
+| 409  | Conflict (duplicate) |
+| 500  | Server error         |
+
+---
+
+## Auth Module — `/api/auth`
+
+> **Clerk migration note:** With Clerk, sign-up/sign-in/session-refresh are handled client-side by Clerk's React SDK (`@clerk/clerk-react`) and Clerk's own hosted UI — the backend no longer needs `/signup`, `/login`, or `/refresh` endpoints, since Clerk issues and refreshes the session token directly to the browser. Keep only a role-resolution endpoint: `GET /api/auth/me` (below) still applies as-is — the backend verifies the Clerk token via `@clerk/backend`/`clerk-sdk-node`, reads `role` from Clerk's `publicMetadata` (set at sign-up via a Clerk webhook or during onboarding), and returns the matching `volunteers`/`ngos` profile row keyed by `auth_user_id = clerk_user_id`. The `signup`/`login`/`logout`/`refresh` sections below describe the previous Supabase-Auth-based flow and can be removed once the frontend fully switches to Clerk's components.
+
+### `POST /api/auth/signup`
+
+Register a new user account.
+
+**Auth:** None (public)
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123",
+  "role": "volunteer"          // "volunteer" | "ngo"
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": { "id": "uuid", "email": "user@example.com", "role": "volunteer" },
+    "session": { "access_token": "...", "refresh_token": "..." }
+  }
+}
+```
+
+---
+
+### `POST /api/auth/login`
+
+Authenticate an existing user.
+
+**Auth:** None (public)
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": { "id": "uuid", "email": "user@example.com", "role": "volunteer" },
+    "session": { "access_token": "...", "refresh_token": "..." }
+  }
+}
+```
+
+---
+
+### `POST /api/auth/logout`
+
+Invalidate the current session.
+
+**Auth:** Required
+
+**Response (200):**
+```json
+{ "success": true, "data": { "message": "Logged out successfully" } }
+```
+
+---
+
+### `GET /api/auth/me`
+
+Get current authenticated user with role and profile.
+
+**Auth:** Required
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "role": "volunteer",
+    "profile": {
+      "id": "uuid",
+      "full_name": "Jane Doe",
+      "onboarding_complete": true
+    }
+  }
+}
+```
+
+The `profile` field contains the volunteer or NGO profile object based on the user's role.
+
+---
+
+### `POST /api/auth/refresh`
+
+Refresh the access token using a refresh token.
+
+**Auth:** None (uses refresh token in body)
+
+**Request:**
+```json
+{ "refresh_token": "..." }
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "session": { "access_token": "...", "refresh_token": "..." }
+  }
+}
+```
+
+---
+
+## Volunteers Module — `/api/volunteers`
+
+### `GET /api/volunteers/profile`
+
+Get the authenticated volunteer's full profile.
+
+**Auth:** Required — Volunteer only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "full_name": "Jane Doe",
+    "email": "jane@example.com",
+    "phone": "+1234567890",
+    "skills": ["teaching", "mentoring", "design"],
+    "interests": ["education", "youth"],
+    "experience": "3 years tutoring",
+    "location_lat": 24.7136,
+    "location_lng": 46.6753,
+    "location_name": "Riyadh, Saudi Arabia",
+    "age": 20,
+    "onboarding_complete": true,
+    "created_at": "2026-09-01T00:00:00Z"
+  }
+}
+```
+
+---
+
+### `POST /api/volunteers/profile`
+
+Create or update the volunteer profile (onboarding).
+
+**Auth:** Required — Volunteer only
+
+**Request:**
+```json
+{
+  "full_name": "Jane Doe",
+  "phone": "+1234567890",
+  "skills": ["teaching", "mentoring"],
+  "interests": ["education", "youth"],
+  "experience": "3 years tutoring",
+  "location_lat": 24.7136,
+  "location_lng": 46.6753,
+  "location_name": "Riyadh, Saudi Arabia",
+  "age": 20
+}
+```
+
+All fields except `full_name` are optional. Setting sufficient fields sets `onboarding_complete = true` (at minimum: `full_name`, `skills`, `interests`). `age` is stored and used directly for eligibility checks — no `date_of_birth` field or age calculation.
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "onboarding_complete": true } }
+```
+
+---
+
+### `PUT /api/volunteers/profile`
+
+Update specific profile fields.
+
+**Auth:** Required — Volunteer only
+
+**Request:** Same shape as POST, all fields optional (partial update).
+
+**Response (200):** Same as POST response.
+
+---
+
+## NGOs Module — `/api/ngos`
+
+### `GET /api/ngos/profile`
+
+Get the authenticated NGO's organization profile.
+
+**Auth:** Required — NGO only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Education For All",
+    "email": "info@efa.org",
+    "description": "We provide education to underserved communities",
+    "logo_url": "...",
+    "mission": "Quality education for every child",
+    "website": "https://efa.org",
+    "phone": "+1234567890",
+    "location_name": "Jeddah, Saudi Arabia",
+    "location_lat": 21.4858,
+    "location_lng": 39.1925,
+    "onboarding_complete": true,
+    "created_at": "2026-09-01T00:00:00Z"
+  }
+}
+```
+
+---
+
+### `POST /api/ngos/profile`
+
+Create or update the NGO profile (onboarding).
+
+**Auth:** Required — NGO only
+
+**Request:**
+```json
+{
+  "name": "Education For All",
+  "description": "We provide education...",
+  "logo_url": "...",
+  "mission": "Quality education for every child",
+  "website": "https://efa.org",
+  "phone": "+1234567890",
+  "categories": ["education", "youth"],
+  "registration_number": "NGO-2024-001",
+  "location_name": "Jeddah, Saudi Arabia",
+  "location_lat": 21.4858,
+  "location_lng": 39.1925
+}
+```
+
+Required: `name`, `description`. Other fields optional. `onboarding_complete` set when `name` and `description` are present.
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "onboarding_complete": true } }
+```
+
+---
+
+### `PUT /api/ngos/profile`
+
+Update specific NGO profile fields.
+
+**Auth:** Required — NGO only
+
+**Request:** Same shape as POST, all fields optional.
+
+**Response (200):** Same as POST response.
+
+---
+
+### `GET /api/ngos`
+
+List all NGOs with completed onboarding (public directory).
+
+**Auth:** Required (any role)
+
+**Query:** `?page=1&limit=20&category=education&search=health`
+
+**Response (200):** Paginated list of NGO summary objects.
+
+```json
+{
+  "success": true,
+  "data": [
+    { "id": "uuid", "name": "Education For All", "description": "...", "logo_url": "...", "categories": ["education"] }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 5, "totalPages": 1 }
+}
+```
+
+---
+
+### `GET /api/ngos/:id`
+
+Get a single NGO's public profile.
+
+**Auth:** Required (any role)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Education For All",
+    "description": "...",
+    "mission": "...",
+    "logo_url": "...",
+    "website": "...",
+    "categories": ["education"],
+    "location_name": "Jeddah, Saudi Arabia"
+  }
+}
+```
+
+---
+
+## Projects Module — `/api/projects`
+
+### `GET /api/projects`
+
+List projects. Scope depends on caller role:
+- **NGO caller:** Returns all own projects (including drafts).
+- **Volunteer caller:** Returns only published/active/completed projects.
+
+**Auth:** Required (any role)
+
+**Query:** `?page=1&limit=20&status=active&category=education&search=youth`
+
+**Response (200):** Paginated list of project summaries.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "ngo_id": "uuid",
+      "ngo_name": "Education For All",
+      "title": "After-School Tutoring",
+      "description": "...",
+      "category": "education",
+      "required_skills": ["teaching"],
+      "capacity": 20,
+      "registered_count": 12,
+      "whatsapp_number": "+123456789",
+      "status": "active",
+      "start_date": "2026-09-15",
+      "end_date": "2026-12-15",
+      "location_name": "Jeddah, Saudi Arabia"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 3, "totalPages": 1 }
+}
+```
+
+---
+
+### `GET /api/projects/:id`
+
+Get full project details.
+
+**Auth:** Required (any role). Drafts visible only to the owning NGO.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "ngo_id": "uuid",
+    "ngo_name": "Education For All",
+    "title": "After-School Tutoring",
+    "description": "Full description here...",
+    "category": "education",
+    "required_skills": ["teaching", "mentoring"],
+    "responsibilities": ["Tutor students in math", "Prepare lesson plans"],
+    "eligibility": { "min_age": 18, "required_languages": ["en"] },
+    "capacity": 20,
+    "whatsapp_number": "+123456789",
+    "registered_count": 12,
+    "status": "active",
+    "start_date": "2026-09-15",
+    "end_date": "2026-12-15",
+    "event_date": null,
+    "location_name": "Jeddah, Saudi Arabia",
+    "location_lat": 21.4858,
+    "location_lng": 39.1925,
+    "hours_per_session": 3,
+    "created_at": "2026-09-01T00:00:00Z"
+  }
+}
+```
+
+---
+
+### `POST /api/projects`
+
+Create a new project (defaults to `draft` status).
+
+**Auth:** Required — NGO only
+
+**Request:**
+```json
+{
+  "title": "After-School Tutoring",
+  "description": "We need volunteers to tutor...",
+  "category": "education",
+  "required_skills": ["teaching", "mentoring"],
+  "responsibilities": ["Tutor students", "Prepare materials"],
+  "eligibility": { "min_age": 18 },
+  "capacity": 20,
+  "whatsapp_number": "+123456789",
+  "start_date": "2026-09-15",
+  "end_date": "2026-12-15",
+  "location_name": "Jeddah, Saudi Arabia",
+  "location_lat": 21.4858,
+  "location_lng": 39.1925,
+  "hours_per_session": 3
+}
+```
+
+Required: `title`, `description`, `category`, `capacity`, `start_date`, `end_date`. Other fields optional.
+
+**Response (201):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "draft" } }
+```
+
+---
+
+### `PUT /api/projects/:id`
+
+Update a project. Only the owning NGO can update.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Request:** Same shape as POST, all fields optional (partial update).
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "draft" } }
+```
+
+Triggers embedding regeneration if `description`, `required_skills`, `responsibilities`, or `category` changed.
+
+---
+
+### `DELETE /api/projects/:id`
+
+Delete a draft project. Only draft projects can be deleted.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "message": "Project deleted" } }
+```
+
+---
+
+### `POST /api/projects/:id/publish`
+
+Transition project from `draft` → `published`. Triggers embedding generation.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "published" } }
+```
+
+---
+
+### `POST /api/projects/:id/activate`
+
+Transition project from `published` → `active`.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "active" } }
+```
+
+---
+
+### `POST /api/projects/:id/complete`
+
+Transition project from `active` → `completed`.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "completed" } }
+```
+
+---
+
+### `POST /api/projects/:id/cancel`
+
+Cancel a project (`published` or `active` → `cancelled`). Cancels all confirmed registrations.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "cancelled" } }
+```
+
+---
+
+## Registrations Module — `/api/registrations`
+
+### `POST /api/registrations`
+
+Register the authenticated volunteer for a project.
+
+**Auth:** Required — Volunteer only
+
+**Request:**
+```json
+{ "project_id": "uuid" }
+```
+
+**Server-side validation:**
+1. Volunteer has completed onboarding
+2. Project exists and status is `published` or `active`
+3. Project is not at capacity (confirmed registrations < capacity)
+4. Volunteer is not already registered (duplicate check)
+5. Volunteer meets eligibility criteria (age, custom requirements)
+6. Volunteer is not already registered for a conflicting project (optional for MVP)
+
+**Response (201):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "confirmed", "registered_at": "..." } }
+```
+
+**Error cases:**
+- `409` — Already registered for this project
+- `400` — Project at capacity, eligibility not met, onboarding incomplete
+- `404` — Project not found
+
+---
+
+### `GET /api/registrations`
+
+List registrations. Scope:
+- **Volunteer caller:** Own registrations.
+- **NGO caller:** Registrations for own projects.
+
+**Auth:** Required
+
+**Query:** `?page=1&limit=20&project_id=uuid&status=confirmed`
+
+**Response (200):** Paginated list.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "volunteer_id": "uuid",
+      "volunteer_name": "Jane Doe",
+      "project_id": "uuid",
+      "project_title": "After-School Tutoring",
+      "status": "confirmed",
+      "registered_at": "2026-09-10T10:00:00Z"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 3, "totalPages": 1 }
+}
+```
+
+---
+
+### `GET /api/registrations/:id`
+
+Get a single registration.
+
+**Auth:** Required — Volunteer (own only) or NGO (own project only)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "volunteer_id": "uuid",
+    "volunteer_name": "Jane Doe",
+    "project_id": "uuid",
+    "project_title": "After-School Tutoring",
+    "status": "confirmed",
+    "registered_at": "2026-09-10T10:00:00Z"
+  }
+}
+```
+
+---
+
+### `PUT /api/registrations/:id/cancel`
+
+Cancel a registration. Volunteer can cancel own; NGO can cancel for own projects.
+
+**Auth:** Required — Volunteer (own only) or NGO (own project only)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "id": "uuid", "status": "cancelled", "cancelled_at": "..." } }
+```
+
+---
+
+## Attendance Module — `/api/attendance`
+
+### `POST /api/attendance/events`
+
+Create an attendance event with a QR token.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Request:**
+```json
+{
+  "project_id": "uuid",
+  "event_name": "Day 1 Morning Session",
+  "event_date": "2026-09-20",
+  "window_start": "2026-09-20T08:00:00Z",
+  "window_end": "2026-09-20T10:00:00Z"
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "event_id": "uuid",
+    "token": "abc123random",
+    "event_name": "Day 1 Morning Session",
+    "event_date": "2026-09-20",
+    "window_start": "2026-09-20T08:00:00Z",
+    "window_end": "2026-09-20T10:00:00Z"
+  }
+}
+```
+
+---
+
+### `GET /api/attendance/events/:eventId/qr`
+
+Get the QR code data for an attendance event.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "event_id": "uuid",
+    "token": "abc123random",
+    "qr_data": "qadam://attendance/abc123random"
+  }
+}
+```
+
+The frontend renders this `qr_data` string as a QR code using the `qrcode` library.
+
+---
+
+### `GET /api/attendance/events`
+
+List attendance events for a project.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Query:** `?project_id=uuid`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "event_id": "uuid",
+      "event_name": "Day 1 Morning Session",
+      "event_date": "2026-09-20",
+      "window_start": "...",
+      "window_end": "...",
+      "checked_in_count": 8
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/attendance/check-in`
+
+Check in a volunteer by scanning a QR token.
+
+**Auth:** Required — Volunteer only
+
+**Request:**
+```json
+{ "token": "abc123random" }
+```
+
+**Server-side validation:**
+1. Token exists and is valid
+2. Volunteer has a confirmed registration for this project
+3. Event is active (current time is within `window_start` and `window_end`)
+4. Volunteer has not already checked in for this event (duplicate check)
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "attendance_id": "uuid",
+    "event_id": "uuid",
+    "check_in": "2026-09-20T08:05:00Z"
+  }
+}
+```
+
+**Error cases:**
+- `409` — Already checked in for this event
+- `400` — Invalid token, no registration, outside window, event not found
+
+---
+
+### `POST /api/attendance/check-out`
+
+Check out a previously checked-in volunteer.
+
+**Auth:** Required — Volunteer only
+
+**Request:**
+```json
+{ "token": "abc123random" }
+```
+
+**Server-side validation:**
+1. Same as check-in validation
+2. Volunteer has an existing check-in (without check-out) for this event
+3. Volunteer has not already checked out (duplicate check)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "attendance_id": "uuid",
+    "check_in": "2026-09-20T08:05:00Z",
+    "check_out": "2026-09-20T11:02:00Z",
+    "hours": 2.95
+  }
+}
+```
+
+`hours` is calculated as `(check_out - check_in)` in hours, rounded to 2 decimal places.
+
+---
+
+### `GET /api/attendance`
+
+List attendance records.
+- **Volunteer caller:** Own attendance records.
+- **NGO caller:** Attendance for own projects.
+
+**Auth:** Required
+
+**Query:** `?page=1&limit=20&project_id=uuid&event_id=uuid`
+
+**Response (200):** Paginated list.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "volunteer_id": "uuid",
+      "volunteer_name": "Jane Doe",
+      "project_id": "uuid",
+      "event_id": "uuid",
+      "event_name": "Day 1 Morning Session",
+      "check_in": "2026-09-20T08:05:00Z",
+      "check_out": "2026-09-20T11:02:00Z",
+      "hours": 2.95
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 8, "totalPages": 1 }
+}
+```
+
+---
+
+## Matching Module — `/api/matching`
+
+### `GET /api/matching/volunteers/:projectId`
+
+Get ranked volunteer matches for a project.
+
+**Auth:** Required — NGO only (must own the project)
+
+**Query:** `?limit=20`
+
+**Scoring weights** (applied only to candidates that already passed deterministic filtering — status, capacity, eligibility): `distance 0.35` + `skills 0.30` + `interests 0.15` + `embedding_similarity 0.20`. Distance is weighted highest per product requirement — nearby, "good enough" matches should generally outrank far-away semantically-perfect ones. `distance_score` is `1 / (1 + distance_km)` when a volunteer location is set, and is excluded (weight redistributed proportionally across the remaining factors) when either party has no coordinates.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "volunteer_id": "uuid",
+      "volunteer_name": "Jane Doe",
+      "composite_score": 0.82,
+      "reasons": {
+        "distance_km": 5.2,
+        "distance_score": 0.16,
+        "skills_match": { "score": 0.75, "matched": ["teaching", "mentoring"], "missing": ["design"] },
+        "interests_match": { "score": 0.67, "matched": ["education"] },
+        "embedding_similarity": 0.85
+      }
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/matching/projects`
+
+Get ranked project recommendations for the authenticated volunteer.
+
+**Auth:** Required — Volunteer only
+
+**Query:** `?limit=20`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "project_id": "uuid",
+      "project_title": "After-School Tutoring",
+      "ngo_name": "Education For All",
+      "composite_score": 0.78,
+      "reasons": {
+        "distance_km": 3.1,
+        "distance_score": 0.24,
+        "skills_match": { "score": 0.67, "matched": ["teaching"], "missing": ["mentoring"] },
+        "interests_match": { "score": 1.0, "matched": ["education", "youth"] },
+        "embedding_similarity": 0.82
+      }
+    }
+  ]
+}
+```
+
+---
+
+## AI Module — `/api/ai`
+
+### `POST /api/ai/copilot/draft`
+
+Generate a structured project draft from a natural-language brief. **Never writes to the database.** Returns a draft for the NGO to review and approve.
+
+**Auth:** Required — NGO only
+
+**Request:**
+```json
+{
+  "brief": "I need 15 volunteers for a weekend beach cleanup event in Jeddah. Volunteers should be physically fit and care about the environment. The event includes trash collection and sorting."
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "title": "Jeddah Beach Cleanup",
+    "description": "Join us for a weekend beach cleanup initiative focused on...",
+    "required_skills": ["physical fitness", "teamwork"],
+    "responsibilities": [
+      "Collect and sort beach trash and debris",
+      "Work in teams to cover assigned beach sections",
+      "Record collected items for environmental impact tracking"
+    ],
+    "eligibility": {
+      "min_age": 16,
+      "custom_requirements": ["Must be physically fit for outdoor manual labor"]
+    },
+    "capacity": 15
+  }
+}
+```
+
+The response is Zod-validated. If Gemini returns malformed or unparseable output, the endpoint returns a `502` with a user-friendly error.
+
+**Error cases:**
+- `400` — Missing or empty brief
+- `502` — AI provider error (timeout, malformed response, rate limit)
+
+---
+
+### `POST /api/ai/assistant/chat`
+
+Global Knowledge Assistant — a single read/answer-only endpoint for the floating chat widget. Behavior differs based on the caller's role (resolved server-side).
+
+**Auth:** Required (any authenticated role)
+
+**Request:**
+```json
+{
+  "message": "What projects are available in Jeddah this month?"
+}
+```
+
+**Server-side behavior:**
+- **NGO caller:** Grounds the response in that NGO's uploaded knowledge documents (RAG) and their own verified impact metrics. Uses `rag.service.ts` for knowledge retrieval and a lightweight metrics summary path.
+- **Volunteer caller:** Answers general platform questions using public project and NGO data. No RAG grounding (volunteers don't have knowledge bases).
+- **Never** creates, edits, or publishes anything.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "answer": "There are 3 active projects in Jeddah this month:\n1. After-School Tutoring by Education For All...\n2. Beach Cleanup by Green Initiative...\n3. Food Drive by Community Care...",
+    "sources": [
+      { "type": "knowledge_chunk", "document_name": "Q4 Programs.pdf", "chunk_index": 3 },
+      { "type": "project", "project_id": "uuid", "project_title": "After-School Tutoring" }
+    ]
+  }
+}
+```
+
+`sources` is included when the answer is grounded in retrieved documents or specific project data. May be empty for general platform questions.
+
+**Error cases:**
+- `400` — Missing or empty message
+- `502` — AI provider error (graceful fallback: "I'm unable to answer right now. Please try again.")
+
+---
+
+## Knowledge Module — `/api/knowledge`
+
+### `POST /api/knowledge/documents`
+
+Upload a document for RAG processing.
+
+**Auth:** Required — NGO only
+
+**Request:** `multipart/form-data`
+- `file`: The document file (PDF, TXT, DOCX — max 10 MB)
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "file_name": "Q4 Programs.pdf",
+    "file_type": "application/pdf",
+    "file_size": 245000,
+    "status": "uploaded"
+  }
+}
+```
+
+The ingestion pipeline (text extraction → chunking → embedding → pgvector) runs asynchronously after upload. The document transitions: `uploaded` → `processing` → `ready` (or `failed`).
+
+---
+
+### `GET /api/knowledge/documents`
+
+List all documents for the authenticated NGO.
+
+**Auth:** Required — NGO only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "file_name": "Q4 Programs.pdf",
+      "file_type": "application/pdf",
+      "file_size": 245000,
+      "status": "ready",
+      "chunk_count": 12,
+      "created_at": "2026-09-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### `DELETE /api/knowledge/documents/:id`
+
+Delete a document and all its chunks.
+
+**Auth:** Required — NGO only (must own the document)
+
+**Response (200):**
+```json
+{ "success": true, "data": { "message": "Document deleted" } }
+```
+
+---
+
+## Impact Module — `/api/impact`
+
+### `GET /api/impact/volunteer`
+
+Get the authenticated volunteer's personal impact metrics.
+
+**Auth:** Required — Volunteer only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_hours": 48.5,
+    "total_projects": 5,
+    "total_events_attended": 12,
+    "causes": [
+      { "category": "education", "hours": 30.0, "projects": 3 },
+      { "category": "environment", "hours": 18.5, "projects": 2 }
+    ],
+    "recent_activity": [
+      { "project_title": "After-School Tutoring", "date": "2026-09-20", "hours": 3.0 }
+    ]
+  }
+}
+```
+
+**Calculation:** Aggregated from `attendance` records where `check_out IS NOT NULL` and `hours > 0`.
+
+---
+
+### `GET /api/impact/ngo`
+
+Get the authenticated NGO's verified impact metrics.
+
+**Auth:** Required — NGO only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_hours": 1250.0,
+    "total_volunteers": 85,
+    "total_projects": 8,
+    "completed_projects": 5,
+    "active_projects": 2,
+    "monthly_hours": [
+      { "month": "2026-07", "hours": 120.0 },
+      { "month": "2026-08", "hours": 210.0 },
+      { "month": "2026-09", "hours": 180.0 }
+    ]
+  }
+}
+```
+
+**Calculation:** All metrics derived from `attendance` + `registrations` + `projects` tables. Only verified (check-out completed) hours are counted.
+
+---
