@@ -6,7 +6,7 @@ The React application uses React Router with role-based routing. The app shell p
 
 ```
 <App>                         ← Root component
-  <AuthProvider>              ← Auth context
+  <ClerkProvider>            ← Clerk auth context
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
@@ -50,11 +50,21 @@ The React application uses React Router with role-based routing. The app shell p
         <Route path="*" />
       </Routes>
     </BrowserRouter>
-  </AuthProvider>
+  </ClerkProvider>
 </App>
 ```
 
 ## App Shell — Persistent Components
+
+## Location & Map Behavior
+
+- **Volunteer onboarding/profile:** the volunteer selects their exact location with a map pin. Browser geolocation may be used as an optional starting point, but the volunteer can move the pin before saving. The backend stores `location_lat`, `location_lng`, and a cached `location_name` formatted as `"City, Country"`.
+- **NGO onboarding/profile:** no location picker and no NGO profile location is stored.
+- **NGO project creation:** the NGO must set the project location by dropping an exact pin on the map. The backend resolves the pin to `location_name = "City, Country"` and stores the exact coordinates.
+- **Published project viewing:** volunteers and NGOs can view the project's exact pin and city/country on a map.
+- **Map stack:** MapLibre GL + OpenFreeMap for map display/pinning; BigDataCloud Reverse Geocoding for the city/country label.
+- **Distance matching:** the backend calculates Haversine distance between the volunteer's profile pin and the project's pin. Distance has the highest matching weight (`0.35`), followed by skills (`0.30`), interests (`0.15`), and embedding similarity (`0.20`).
+
 
 The `ProtectedLayout` component wraps all authenticated routes and provides:
 
@@ -76,8 +86,8 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 |---------------|------------------------------------------|
 | **Access**    | Public (redirected to `/` if logged in)  |
 | **Components**| `LoginPage`, `LoginForm`                 |
-| **API calls** | `POST /api/auth/login`                   |
-| **Notes**     | After login, redirects to role-appropriate home. Volunteers → `/volunteer/projects`, NGOs → `/ngo/dashboard`. If onboarding incomplete → redirect to onboarding. |
+| **API calls** | Clerk `<SignIn>`                   |
+| **Notes**     | After Clerk authentication, `/api/auth/me` resolves role/profile and the app redirects to the role-appropriate home. If onboarding is incomplete → redirect to onboarding. |
 
 ### `/register`
 
@@ -85,8 +95,8 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 |---------------|------------------------------------------|
 | **Access**    | Public (redirected to `/` if logged in)  |
 | **Components**| `RegisterPage`, `RegisterForm`           |
-| **API calls** | `POST /api/auth/signup`                  |
-| **Notes**     | Role selection (Volunteer / NGO) in the form. After signup → redirect to onboarding. |
+| **API calls** | Clerk `<SignUp>`                  |
+| **Notes**     | Role selection is collected during onboarding/Clerk metadata setup. After Clerk sign-up → redirect to role-specific onboarding. |
 
 ---
 
@@ -117,7 +127,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | Any authenticated user (drafts only visible to owning NGO) |
 | **Components**| `ProjectDetailPage`, `ProjectInfo`, `RegistrationButton` (volunteers), `ProjectActions` (NGO owner) |
 | **API calls** | `GET /api/projects/:id`                       |
-| **Notes**     | Volunteers see a "Register" button (calls `POST /api/registrations`). NGO owner sees edit/status controls. |
+| **Notes**     | Volunteers see the project pin and `City, Country` on a map plus a "Register" button. NGO owner sees edit/status controls. |
 
 ---
 
@@ -128,7 +138,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | Volunteer only (redirected here if `onboarding_complete = false`) |
-| **Components**| `VolunteerOnboardingPage`, `MultiStepForm` (personal info → skills & interests → availability & location → review) |
+| **Components**| `VolunteerOnboardingPage`, `MultiStepForm` (personal info → skills & interests → exact map location pin → review) |
 | **API calls** | `POST /api/volunteers/profile`, `GET /api/auth/me` |
 | **Notes**     | Multi-step wizard. On completion, `onboarding_complete` becomes `true`. |
 
@@ -139,7 +149,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | Volunteer only (requires onboarding complete) |
 | **Components**| `VolunteerProfilePage`, `ProfileForm`         |
 | **API calls** | `GET /api/volunteers/profile`, `PUT /api/volunteers/profile` |
-| **Notes**     | Edit skills, interests, availability, location. Changes trigger embedding regeneration on the backend. |
+| **Notes**     | Edit skills, interests, experience, and the exact profile location pin. Changes to skills/interests/experience trigger embedding regeneration; location never enters the embedding. |
 
 ### `/volunteer/projects` — My Projects
 
@@ -175,7 +185,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | Volunteer only                                |
 | **Components**| `QRScannerPage`, `QRScanner` (html5-qrcode), `ScanResult` |
 | **API calls** | `POST /api/attendance/check-in` or `POST /api/attendance/check-out` |
-| **Notes**     | Uses browser camera via `html5-qrcode`. Scans QR token → sends to backend → shows result (checked in / checked out / error). |
+| **Notes**     | Uses browser camera via `html5-qrcode`. Scans QR payload containing `event_id` + token → sends both to backend → shows result (checked in / checked out / error). |
 
 ---
 
@@ -206,7 +216,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | NGO only                                      |
 | **Components**| `NgoProfilePage`, `NgoProfileForm`            |
 | **API calls** | `GET /api/ngos/profile`, `PUT /api/ngos/profile` |
-| **Notes**     | Edit organization details, categories, location. |
+| **Notes**     | Edit organization details, logo, and categories. NGO profile has no location field; project locations are set in the project form. |
 
 ### `/ngo/projects` — Manage Projects
 
@@ -222,9 +232,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | NGO only                                      |
-| **Components**| `CreateProjectPage`, `ProjectForm`, **`CopilotPanel`** |
+| **Components**| `CreateProjectPage`, `ProjectForm`, **`ProjectLocationPicker`**, **`CopilotPanel`** |
 | **API calls** | `POST /api/ai/copilot/draft`, `POST /api/projects` |
-| **Notes**     | **This is the only route where the Project Copilot panel appears.** The `CopilotPanel` is an inline panel or drawer next to the project form. NGO types a brief → Copilot returns a structured draft → NGO reviews/edits in the form → explicitly clicks "Create Project" → calls `POST /api/projects`. |
+| **Notes**     | **This is the only route where the Project Copilot panel appears.** The `CopilotPanel` is an inline panel or drawer next to the project form. NGO types a brief → Copilot returns a structured draft → NGO reviews/edits → drops the exact project pin → `location_name` is resolved as `City, Country` → clicks "Create Project" → calls `POST /api/projects`. |
 
 ### `/ngo/projects/:id/edit` — Edit Project (with Copilot)
 
@@ -260,7 +270,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | NGO only (must own the project)               |
 | **Components**| `MatchingPage`, `MatchCard`, `ScoreBreakdown`, `MatchFilters` |
 | **API calls** | `GET /api/matching/volunteers/:projectId?limit=20` |
-| **Notes**     | Ranked list of volunteer matches with composite score and per-factor breakdown. Each card shows matched skills, interests, distance, and embedding similarity. |
+| **Notes**     | Ranked list of volunteer matches with composite score and per-factor breakdown. Each card shows matched skills, interests, distance, and embedding similarity. Distance is the highest-weight factor (0.35); embedding is 0.20. |
 
 ### `/ngo/knowledge` — Knowledge Base Management
 
@@ -298,9 +308,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 
 | Guard               | Logic                                                                   |
 |---------------------|-------------------------------------------------------------------------|
-| `ProtectedLayout`   | Redirects to `/login` if not authenticated. Provides nav + floating assistant. |
-| `VolunteerGuard`    | Redirects to `/login` if not authenticated. Redirects to `/ngo/dashboard` if role is NGO. Redirects to `/volunteer/onboarding` if onboarding incomplete. |
-| `NgoGuard`          | Redirects to `/login` if not authenticated. Redirects to `/volunteer/projects` if role is volunteer. Redirects to `/ngo/onboarding` if onboarding incomplete. |
+| `ProtectedLayout`   | Uses Clerk authentication; redirects to `/login` if not authenticated. Provides nav + floating assistant. |
+| `VolunteerGuard`    | Uses Clerk authentication; redirects to `/login` if not authenticated. Redirects to `/ngo/dashboard` if role is NGO. Redirects to `/volunteer/onboarding` if onboarding incomplete. |
+| `NgoGuard`          | Uses Clerk authentication; redirects to `/login` if not authenticated. Redirects to `/volunteer/projects` if role is volunteer. Redirects to `/ngo/onboarding` if onboarding incomplete. |
 
 ---
 

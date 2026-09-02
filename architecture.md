@@ -36,18 +36,18 @@
     ┌───────────────────┼──────────────────────┐
     │     Supabase       │                      │
     │  ┌─────────┐ ┌────┴─────┐ ┌───────────┐ │
-    │  │  Auth   │ │PostgreSQL│ │  Storage   │ │
-    │  │  (JWT)  │ │+pgvector │ │(Documents) │ │
+    │  │ Clerk    │ │PostgreSQL│ │  Storage   │ │
+    │  │ (Auth)  │ │+pgvector │ │(Documents) │ │
     │  └─────────┘ └──────────┘ └───────────┘ │
     └──────────────────────────────────────────┘
                         │
          ┌──────────────┼──────────────┐
          │              │              │
-    ┌────┴────┐   ┌─────┴─────┐       │
-    │ Gemini  │   │ Hugging   │       │
-    │ API     │   │ Face API  │       │
-    │ (LLM)   │   │(Embeddings)│       │
-    └─────────┘   └───────────┘       │
+    ┌────┴────┐   ┌─────┴─────┐   ┌─────┴─────┐
+    │ Gemini  │   │ Qwen      │   │ Hugging   │
+    │ API     │   │ DashScope │   │ Face API  │
+    │ (LLM)   │   │ (fallback)│   │(Embeddings)│
+    └─────────┘   └───────────┘   └───────────┘
 ```
 
 ## Technology Stack
@@ -59,38 +59,115 @@
 | Database  | Supabase PostgreSQL, pgvector extension               |
 | Auth      | Clerk (session tokens)                                 |
 | Storage   | Supabase Storage (RAG documents, logos)               |
-| LLM       | Gemini API (text generation, summarization)           |
+| LLM       | Gemini API free-tier models → Qwen (DashScope) fallback |
 | Embeddings| Hugging Face Inference API (HTTP, never local model)  |
 | Validation| Zod (API inputs and AI outputs)                       |
 | QR        | `qrcode` (generation), `html5-qrcode` (scanning)      |
 | Charts    | Recharts                                              |
+| Maps      | MapLibre GL + OpenFreeMap; BigDataCloud reverse geocoding |
 
 ## Module Boundaries
 
 ### Backend Modules
 
-Each module lives in `backend/src/modules/<name>/` and contains its own routes, controllers, services, validation schemas, and types.
-
-| Module          | Responsibility                                         |
-|-----------------|--------------------------------------------------------|
-| `auth/`         | Clerk token verification, role resolution from Clerk metadata, user resolution |
-| `volunteers/`   | Volunteer profile CRUD, skills, interests, availability, location |
-| `ngos/`         | NGO organization profile CRUD, NGO user management     |
-| `projects/`     | Project CRUD, lifecycle management (draft → published → active → completed / cancelled) |
-| `registrations/`| Volunteer sign-up for projects, capacity enforcement, duplicate checks, eligibility validation |
-| `attendance/`   | QR token generation, check-in/check-out validation, verified hours calculation |
-| `matching/`     | Hybrid matching pipeline: deterministic filtering + multi-factor scoring + embedding similarity |
-| `ai/`           | AI service abstractions: `gemini.service.ts`, `embedding.service.ts`, `copilot.service.ts`, `rag.service.ts` |
-| `knowledge/`    | NGO document ingestion pipeline, RAG query orchestration |
-
-### Shared Code
-
-| Directory         | Contents                                              |
-|-------------------|-------------------------------------------------------|
-| `config/`         | Environment variables, Supabase config, constants     |
-| `middleware/`      | `auth.middleware.ts`, `validate.middleware.ts`, `error.middleware.ts` |
-| `lib/`            | Supabase admin client, Clerk backend client, HF HTTP client |
-| `utils/`          | Error classes, response helpers, date utilities       |
+```
+backend/
+├── src/
+│   ├── config/
+│   │   ├── env.ts
+│   │   ├── clerk.ts
+│   │   ├── supabase.ts
+│   │   └── ai.ts
+│   │
+│   ├── controllers/
+│   │   ├── auth.controller.ts
+│   │   ├── volunteer.controller.ts
+│   │   ├── ngo.controller.ts
+│   │   ├── project.controller.ts
+│   │   ├── registration.controller.ts
+│   │   ├── matching.controller.ts
+│   │   ├── attendance.controller.ts
+│   │   ├── ai.controller.ts
+│   │   ├── knowledge.controller.ts
+│   │   └── impact.controller.ts
+│   │
+│   ├── services/
+│   │   ├── auth.service.ts
+│   │   ├── volunteer.service.ts
+│   │   ├── ngo.service.ts
+│   │   ├── project.service.ts
+│   │   ├── registration.service.ts
+│   │   ├── matching.service.ts
+│   │   ├── attendance.service.ts
+│   │   ├── knowledge.service.ts
+│   │   ├── impact.service.ts
+│   │   └── ai/
+│   │       ├── llm.service.ts
+│   │       ├── gemini.service.ts
+│   │       ├── qwen.service.ts
+│   │       ├── embedding.service.ts
+│   │       ├── copilot.service.ts
+│   │       └── rag.service.ts
+│   │
+│   ├── routes/
+│   │   ├── auth.routes.ts
+│   │   ├── volunteer.routes.ts
+│   │   ├── ngo.routes.ts
+│   │   ├── project.routes.ts
+│   │   ├── registration.routes.ts
+│   │   ├── matching.routes.ts
+│   │   ├── attendance.routes.ts
+│   │   ├── ai.routes.ts
+│   │   ├── knowledge.routes.ts
+│   │   └── impact.routes.ts
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.ts
+│   │   ├── error.middleware.ts
+│   │   ├── validate.middleware.ts
+│   │   └── not-found.middleware.ts
+│   │
+│   ├── validators/
+│   │   ├── auth.validator.ts
+│   │   ├── volunteer.validator.ts
+│   │   ├── ngo.validator.ts
+│   │   ├── project.validator.ts
+│   │   ├── registration.validator.ts
+│   │   ├── attendance.validator.ts
+│   │   ├── ai.validator.ts
+│   │   └── knowledge.validator.ts
+│   │
+│   ├── types/
+│   │   ├── auth.types.ts
+│   │   ├── volunteer.types.ts
+│   │   ├── ngo.types.ts
+│   │   ├── project.types.ts
+│   │   └── express.d.ts
+│   │
+│   ├── utils/
+│   │   ├── errors.ts
+│   │   ├── response.ts
+│   │   ├── distance.ts
+│   │   └── logger.ts
+│   │
+│   ├── lib/
+│   │   ├── supabase.ts
+│   │   ├── clerk.ts
+│   │   └── http.ts
+│   │
+│   ├── app.ts
+│   └── server.ts
+│
+├── tests/
+│   ├── unit/
+│   └── integration/
+│
+├── .env
+├── .env.example
+├── package.json
+├── tsconfig.json
+└── README.md
+```
 
 ### Frontend Structure
 
@@ -99,7 +176,7 @@ frontend/
   src/
     components/         # Shared UI components (shadcn/ui + custom)
     hooks/              # Custom React hooks (useAuth, useApi, etc.)
-    lib/                # API client, Supabase browser client, utils
+    lib/                # API client, Clerk frontend SDK, utils
     pages/              # Route-level page components
       auth/             # Login, Register, Onboarding
       volunteer/        # Volunteer-specific pages
@@ -154,6 +231,37 @@ Client Request (JWT in Authorization: Bearer <token>)
     │
     ▼
 Client receives response
+
+```
+
+```
+Request
+   ↓
+Route
+   ↓
+Middleware
+   ↓
+Validator
+   ↓
+Controller
+   ↓
+Service
+   ↓
+Supabase / External API
+```
+
+### For AI
+
+```
+Controller
+   ↓
+copilot.service.ts / rag.service.ts
+   ↓
+llm.service.ts
+   ↓
+Gemini
+   ↓
+Qwen fallback
 ```
 
 ## Data Flow: Key Operations
@@ -163,8 +271,8 @@ Client receives response
 ```
 GET /api/matching/volunteers/:projectId
     → Auth + Authz (NGO only, owns project)
-    → Deterministic filters (status, capacity, eligibility (age, gender), distance)
-    → Score each candidate (skills + interests + embedding + distance)
+    → Deterministic filters (status, capacity, eligibility by age, distance)
+    → Score each candidate (distance + skills + interests + embedding)
     → Rank by composite score descending
     → Return top-N with per-factor breakdown
 ```
@@ -178,11 +286,11 @@ POST /api/ai/assistant/chat { message }
         → Embed question via Hugging Face API
         → pgvector similarity search over that NGO's knowledge chunks
         → Retrieve top-K relevant chunks
-        → Build grounded prompt → Gemini API → answer
+        → Build grounded prompt → Gemini-first/Qwen-fallback LLM service → answer
         → Return answer + source references
     → If Volunteer caller:
         → Build prompt with public project/NGO data context
-        → Gemini API → answer
+        → Gemini-first/Qwen-fallback LLM service → answer
         → Return answer
     → Read/answer only — never creates or edits data
 ```
@@ -209,7 +317,7 @@ POST /api/ai/assistant/chat { message }
 ```
 POST /api/ai/copilot/draft { brief }
     → Auth + Authz (NGO only)
-    → Send brief to Gemini with structured output prompt
+    → Send brief to Gemini-first/Qwen-fallback LLM service with structured output prompt
     → Parse + validate response with Zod schema
     → Return draft to client (title, description, skills, responsibilities, eligibility, capacity)
     → NEVER writes to database
@@ -219,7 +327,7 @@ POST /api/ai/copilot/draft { brief }
 ## Security Model
 
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `HF_TOKEN`) exist only on the backend.
-- Frontend uses only `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- Frontend uses only `VITE_CLERK_PUBLISHABLE_KEY`; it does not access Supabase directly.
 - All IDs (user, NGO, project, registration, attendance) are derived server-side from the JWT — never trusted from the client.
 - Every protected endpoint enforces: authenticate → resolve user → check authorization → validate input → execute.
 

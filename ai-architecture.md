@@ -71,22 +71,24 @@ Qadam ships **exactly two** AI-facing UI surfaces. They are never merged into on
 | Side effects    | None (read-only)                | None (draft only)              |
 | UI surface      | Floating widget (global)        | Inline panel (project form)    |
 
-They share `gemini.service.ts` and `embedding.service.ts` as internal dependencies, but remain separate HTTP endpoints.
+Both surfaces may use the provider-agnostic `llm.service.ts`; they remain separate HTTP endpoints and auth/side-effect boundaries.
 
 ---
 
 ## Service Abstraction Layer
 
-All AI providers are hidden behind service abstractions. No other module directly calls Gemini or Hugging Face.
+All AI providers are hidden behind service abstractions. No other module directly calls Gemini, Qwen, or Hugging Face.
 
 ```
-backend/src/modules/ai/services/
+backend/src/services/ai/
 
-  gemini.service.ts      — LLM text generation (Gemini API)
+  gemini.service.ts      — Primary LLM generation (Gemini free-tier models)
+  qwen.service.ts        — Fallback LLM generation (Alibaba Cloud DashScope Qwen)
+  llm.service.ts         — Gemini-first/Qwen-fallback provider wrapper
   embedding.service.ts   — Embedding generation (Hugging Face Inference API)
-  copilot.service.ts     — Project draft generation (uses gemini.service)
-  rag.service.ts         — RAG query orchestration (uses embedding.service + gemini.service)
-  matching.service.ts    — Matching embedding operations (uses embedding.service)
+  copilot.service.ts     — Project draft generation (uses llm.service)
+  rag.service.ts         — RAG query orchestration (uses embedding.service + llm.service)
+  matching.service.ts    — Matching embeddings + deterministic scoring (uses embedding.service)
 ```
 
 ### `gemini.service.ts`
@@ -117,6 +119,14 @@ async function generateText(params: {
 - Network → throw `AIProviderError` with code `NETWORK_ERROR`
 
 ---
+
+### `qwen.service.ts` and `llm.service.ts`
+
+`qwen.service.ts` wraps Alibaba Cloud DashScope's OpenAI-compatible Qwen API as the fallback LLM provider.
+
+`llm.service.ts` exposes one provider-agnostic generation interface. It tries Gemini first, then Qwen on timeout, network failure, malformed/empty response, or rate limiting. Callers never select a provider.
+
+The provider choice is logged server-side, while Zod validation is applied to the final structured output regardless of provider.
 
 ### `embedding.service.ts`
 
@@ -167,91 +177,46 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]>
 
 ### Step 1: Deterministic Filtering
 
-Hard constraints that **must** pass before any scoring. A volunteer who fails any filter is excluded entirely.
+Hard constraints that must pass before scoring. A volunteer who fails any filter is excluded.
 
 ```sql
 -- Pseudocode for the filter query
 SELECT v.* FROM volunteers v
 WHERE
-  -- Project must be published or active
   EXISTS (SELECT 1 FROM projects p WHERE p.id = :projectId AND p.status IN ('published', 'active'))
-  -- Project must have remaining capacity
   AND (SELECT COUNT(*) FROM registrations r WHERE r.project_id = :projectId AND r.status = 'confirmed') < p.capacity
-  -- Volunteer must not already be registered
   AND NOT EXISTS (SELECT 1 FROM registrations r WHERE r.volunteer_id = v.id AND r.project_id = :projectId)
-  -- Volunteer must have completed onboarding
   AND v.onboarding_complete = true
-  -- Eligibility: minimum age (if specified in project.eligibility.min_age)
-  AND (p.eligibility->>'min_age')::int IS NULL
-     OR v.date_of_birth <= CURRENT_DATE - (p.eligibility->>'min_age')::int * INTERVAL '1 year'
-  -- Distance filter (if both have location): within 100km
-  AND (v.location_lat IS NULL OR p.location_lat IS NULL
-       OR haversine(v.lat, v.lng, p.lat, p.lng) <= 100)
+  AND ((p.eligibility->>'min_age') IS NULL OR v.age >= (p.eligibility->>'min_age')::int)
+  AND (v.location_lat IS NULL OR p.location_lat IS NULL OR haversine(v.location_lat, v.location_lng, p.location_lat, p.location_lng) <= 100)
 ```
+
+**There is no availability filter.** Availability is not a project or volunteer database field in the MVP.
 
 ### Step 2: Multi-Factor Scoring
 
-For each candidate that passes deterministic filters, compute a composite score.
+For each candidate that passes deterministic filtering, compute a composite score.
 
-**Matching Score Formula:**
-
-```
+```text
 composite_score = (
-    W_skills     × S_skills
-  + W_interests  × S_interests
-  + W_embedding  × S_embedding
-  + W_distance   × S_distance
+    0.35 × S_distance
+  + 0.30 × S_skills
+  + 0.15 × S_interests
+  + 0.20 × S_embedding
 )
 ```
 
-**Weights:**
+**Weights must match API Contracts:** distance `0.35` (highest), skills `0.30`, interests `0.15`, embedding similarity `0.20`.
 
-| Factor         | Weight | Source                                          |
-|----------------|--------|-------------------------------------------------|
-| Skills match   | 0.35   | Deterministic set overlap                       |
-| Interests match| 0.20   | Deterministic set overlap                       |
-| Embedding sim. | 0.30   | pgvector cosine similarity                      |
-| Distance       | 0.05   | Haversine formula (when locations available)     |
+**Embedding inputs never contain location or availability fields.**
 
-**Sum of weights = 1.00**
+Volunteer embedding input: `Skills + Interests + Experience` only.
 
-**Individual Score Calculations:**
+Project embedding input: `Title + Category + Description + Required Skills + Responsibilities` only.
 
-**S_skills** — Jaccard similarity on required vs. offered skills:
-```
-S_skills = |volunteer.skills ∩ project.required_skills| / |volunteer.skills ∪ project.required_skills|
-```
-If both sets are empty: `S_skills = 0`.
+**S_distance:** `distance_km = haversine(volunteer.location_lat, volunteer.location_lng, project.location_lat, project.location_lng)` and `S_distance = 1 / (1 + distance_km)`. If either exact pin is missing, drop the distance term and proportionally renormalize the remaining weights.
 
-**S_interests** — Jaccard similarity on interests vs. project category + related tags:
-```
-S_interests = |volunteer.interests ∩ project_tags| / |volunteer.interests ∪ project_tags|
-```
-Where `project_tags = [project.category, ...any_interest_tags_from_project]`. If both sets are empty: `S_interests = 0`.
-
-**S_embedding** — Cosine similarity from pgvector:
-```sql
-SELECT 1 - (ve.embedding <=> pe.embedding) AS similarity
-FROM volunteer_embeddings ve, project_embeddings pe
-WHERE ve.volunteer_id = :volunteerId AND pe.project_id = :projectId
-```
-If either embedding is missing: `S_embedding = 0` (and trigger async embedding generation).
-
-**S_availability** — Compatibility score:
-```
-If project specifies required days:
-  matched_days = |volunteer.availability.days ∩ project.required_days| / |project.required_days|
-  S_availability = matched_days
-Else:
-  S_availability = 1.0 (no constraint → fully available)
-```
-
-**S_distance** — Proximity score (when both locations are known):
-```
-distance_km = haversine(volunteer.lat, volunteer.lng, project.lat, project.lng)
-S_distance = max(0, 1 - distance_km / 50)
-```
-If either location is missing: `S_distance = 0.5` (neutral — neither rewarded nor penalized).
+**S_skills** and **S_interests** use deterministic set-overlap/Jaccard-style scoring. **S_embedding** uses pgvector cosine similarity.
 
 ### Step 3: Ranking + Explanation
 
@@ -261,7 +226,6 @@ If either location is missing: `S_distance = 0.5` (neutral — neither rewarded 
   - `skills_match`: which skills matched, which are missing
   - `interests_match`: which interests aligned
   - `embedding_similarity`: raw cosine similarity value
-  - `availability_match`: whether days align
   - `distance_km`: actual distance (when available)
 
 ### Embedding Lifecycle
@@ -295,10 +259,10 @@ Project:
 
 ```
 ┌────────────┐         ┌────────────────┐         ┌───────────────┐
-│ NGO User   │         │ copilot.service│         │ gemini.service│
+│ NGO User   │         │ copilot.service│         │ llm.service   │
 │            │         │                │         │               │
 │ Types brief├────────►│ Build prompt   ├────────►│ Generate text │
-│ in panel   │         │ with schema    │         │ from Gemini   │
+│ in panel   │         │ with schema    │         │ from Gemini / Qwen fallback  │
 │            │         │ instructions   │         │               │
 │            │◄────────┤ Parse + Zod    │◄────────┤ Return text   │
 │ Reviews    │         │ validate       │         │               │
@@ -328,6 +292,7 @@ User: {brief from NGO}
 ```typescript
 const CopilotDraftSchema = z.object({
   title: z.string().min(5).max(200),
+  category: z.string().min(20).max(2000),
   description: z.string().min(20).max(2000),
   required_skills: z.array(z.string()).min(1).max(20),
   responsibilities: z.array(z.string()).min(1).max(20),
@@ -389,7 +354,7 @@ NGO uploads document
 - Max file size: 10 MB
 - Supported formats: PDF, TXT, DOCX
 - Max chunks per document: 200
-- Ingestion runs synchronously in the request (acceptable for MVP with bounded file sizes)
+- File storage returns immediately with status: uploaded; ingestion runs asynchronously within the same Node process, transitioning uploaded → processing → ready|failed.
 
 ### Query Pipeline
 
@@ -425,7 +390,7 @@ User asks question in floating widget
         │        Question: {user message}"
         │         │
         │         ▼
-        │    4. Call gemini.service.ts → generate answer
+        │    4. Call llm.service.ts → generate answer
         │         │
         │         ▼
         │    5. Return answer + source references
@@ -441,7 +406,7 @@ User asks question in floating widget
         │    2. Build context prompt with public data
         │         │
         │         ▼
-        │    3. Call gemini.service.ts → generate answer
+        │    3. Call llm.service.ts → generate answer
         │         │
         │         ▼
         │    4. Return answer (no RAG sources for volunteers)
@@ -473,7 +438,7 @@ POST /api/impact/ngo/narrative
       these verified metrics: {metrics}. Keep it under 200 words."
         │
         ▼
-  3. Call gemini.service.ts → generate narrative
+  3. Call llm.service.ts → generate narrative
         │
         ▼
   4. Return narrative text

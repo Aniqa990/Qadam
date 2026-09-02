@@ -49,67 +49,52 @@ Use:
 * TypeScript
 * Express
 
-The Node.js backend is the single application backend and AI orchestration layer.
+## Backend Structure
 
-Organize backend code by domain rather than by technical type.
+Use a standard layered Node.js + Express + TypeScript architecture.
 
-Preferred structure:
+backend/src/
+├── config/        # Environment and application configuration
+├── controllers/   # HTTP request/response handling only
+├── services/      # Business logic and external integrations
+├── routes/        # Express route definitions
+├── middleware/    # Authentication, validation, error handling
+├── validators/    # Zod request schemas
+├── types/         # Shared TypeScript types
+├── utils/         # Small shared utility functions
+├── lib/           # External client initialization
+├── app.ts         # Express app configuration
+└── server.ts      # Server startup
 
-backend/
+Use this request flow:
 
+Route → Middleware → Validator → Controller → Service → Database/API
 
-    src/
+Controllers must remain thin. They should:
+- read validated request data
+- access authenticated user information
+- call the appropriate service
+- return the HTTP response
 
+Controllers must not contain business logic or direct database queries.
 
-        config/
+Services contain domain/business logic and may call:
+- Supabase
+- external APIs
+- AI service abstractions
+- utility functions
 
+Routes should only define endpoints and attach middleware/controllers.
 
-        middleware/
+Do not introduce repositories, use-cases, dependency-injection containers,
+factories, or other abstraction layers unless explicitly required.
 
+AI services belong under:
 
-        modules/
+services/ai/
 
-
-            auth/
-
-            volunteers/
-
-            ngos/
-
-            projects/
-
-            registrations/
-
-            attendance/
-
-            matching/
-
-            ai/
-
-            knowledge/
-
-        lib/
-
-
-        utils/
-
-
-        app.ts
-
-
-        server.ts
-
-
-
-Each module should contain its relevant:
-
-* routes
-* controllers
-* services
-* validation schemas
-* types
-
-Do not create separate servers for matching, RAG, AI, or attendance.
+AI provider implementations must remain hidden behind llm.service.ts.
+Controllers must never call Gemini, Qwen, or Hugging Face directly.
 
 ## Database
 
@@ -144,7 +129,7 @@ Use Row Level Security where appropriate.
 
 Store `skills` and `interests` as `TEXT[]` with GIN indexes, not normalized lookup tables, for MVP — see "Skills/interests: arrays vs normalized tables" discussion. Revisit only if the product needs admin-curated taxonomies, multi-language labels, or skill-level analytics.
 
-Location fields (`location_name`) must be stored as `"City, Country"` (e.g. `"Karachi, Pakistan"`), not a bare city or country. Always store the exact pinned coordinates (`location_lat`/`location_lng`) from a map picker alongside it — never derive coordinates from a city centroid lookup. Use OpenStreetMap for both directions: Nominatim for reverse-geocoding the dropped pin into a `"City, Country"` string, and `react-leaflet` with OSM tile layers for the pin-drop UI on the frontend. Respect Nominatim's usage policy (max ~1 req/sec, custom `User-Agent` header) — cache the reverse-geocode result on the row rather than re-querying it.
+Location fields (`location_name`) must be stored as `"City, Country"` (e.g. `"Karachi, Pakistan"`), never as a bare city or country. Exact pinned coordinates (`location_lat`/`location_lng`) must always be stored alongside the location string; never derive coordinates from a city centroid. Use **MapLibre GL with OpenFreeMap** for map display and pin selection. OpenFreeMap provides free public vector tiles with no API key or request quota. Use **BigDataCloud Reverse Geocoding** to convert selected coordinates into the `"City, Country"` string; use its server-side endpoint for arbitrary map pins and cache the resolved string in the row.
 
 ## Clerk Auth Migration
 
@@ -156,10 +141,7 @@ Backend: verify the Clerk session token on every protected request using `@clerk
 
 Pick one RLS strategy and apply it consistently — do not mix them:
 
-1. **Preferred: Supabase native third-party auth for Clerk.** Configure Clerk as a third-party auth provider in the Supabase dashboard. Supabase then accepts Clerk-issued JWTs directly; RLS policies read the Clerk user ID via `(auth.jwt()->>'sub')` in place of `auth.uid()`. This keeps RLS as real defense-in-depth with the least custom code — just swap `auth.uid()` for `(auth.jwt()->>'sub')` throughout the policies in database-schema.md.
-2. **Simpler fallback: backend-only authorization.** All Express requests already use the service-role Supabase client after Clerk verification, so RLS never actually applies to backend traffic. In this mode, keep RLS enabled with default-deny policies (protects against a leaked anon key) but treat the Express "authenticate → resolve user → authorize" pipeline as the real authorization boundary, since option 1 requires wiring up Supabase's third-party auth config which is extra setup for a hackathon MVP.
-
-Recommendation: start with option 2 (you already enforce authorization server-side per request; RLS was always a second layer, not the primary one) and move to option 1 later if direct-from-browser Supabase queries are ever needed.
+Use **backend-only authorization** for the MVP. Express verifies Clerk tokens and performs all authorization before using the Supabase service-role client. Keep RLS enabled with default-deny policies as defense-in-depth; do not rely on `auth.uid()` policies because the frontend never queries Supabase directly.
 
 ## Backend Security
 
@@ -192,7 +174,7 @@ Use only free resources.
 
 Primary AI providers:
 
-* Gemini API (free tier) for LLM generation, with Alibaba Cloud DashScope's Qwen (free-tier models, OpenAI-compatible endpoint) as an automatic fallback when Gemini errors, times out, or is rate-limited
+* Gemini API free-tier models for LLM generation, with Alibaba Cloud DashScope Qwen free-tier models as the automatic fallback when Gemini errors, times out, or is rate-limited
 * Hugging Face Inference API for embeddings
 * Supabase pgvector for vector storage and similarity search
 
@@ -208,9 +190,9 @@ Keep AI providers behind service abstractions.
 
 Example:
 
-ai/
+services/
 
-    services/
+    ai/
 
         gemini.service.ts
 
@@ -283,7 +265,7 @@ This surface never creates, edits, or publishes a project. It is read/answer-onl
 Lives only inside the NGO's "Create Project" / "Edit Project" screen, as an inline panel or drawer next to the project form — not in the floating widget, not on any other page.
 Visible only to authenticated NGO users, only within that flow.
 Backend contract: POST /api/ai/copilot/draft
-Accepts a short natural-language brief, returns a Zod-validated structured draft (title, description, required skills, responsibilities, eligibility, capacity).
+Accepts a short natural-language brief, returns a Zod-validated structured draft (title, description, category, required skills, responsibilities, eligibility, capacity).
 Never writes to the database. The NGO must review, optionally edit, then explicitly Approve, which triggers the normal project-create/update endpoint.
 copilot.service.ts and rag.service.ts may both depend on the same gemini.service.ts and embedding.service.ts, but the two HTTP endpoints above stay separate because their auth scope, grounding data, and side effects differ.
 
@@ -291,13 +273,12 @@ Marketing/UI copy may still refer to this collectively as "the Qadam AI Assistan
 
 ## Matching
 
-Volunteer matching must use a hybrid approach.
+Volunteer matching must use a hybrid approach. **Availability is not stored or matched in the MVP.**
 
 First perform deterministic filtering:
 
 * project status
 * project capacity
-* volunteer availability
 * eligibility requirements
 * location/distance when available
 
@@ -340,7 +321,6 @@ Expose reasons such as:
 * matching skills
 * matching interests
 * previous experience
-* availability
 * distance
 * project relevance
 
@@ -539,6 +519,7 @@ Use:
 
 * HF_TOKEN=
 * HF_EMBEDDING_MODEL=
+* BDC_API_KEY=
 
 Frontend .env may contain only public configuration: `VITE_SUPABASE_URL` and `VITE_CLERK_PUBLISHABLE_KEY`. (Note: `SUPABASE_ANON_KEY` is no longer needed on the frontend once the frontend never talks to Supabase directly — all data access goes through the Express API.)
 

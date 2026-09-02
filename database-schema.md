@@ -1,6 +1,8 @@
 # Database Schema
 
-> **Auth provider note (Clerk migration):** This schema originally assumed Supabase Auth, where `auth_user_id` is a UUID FK into Supabase's built-in `auth.users` table and RLS policies use `auth.uid()`. With Clerk as the auth provider, `auth_user_id` instead stores Clerk's user ID (a string like `user_2abc...`, not a UUID) and there is no local `auth.users` table to FK against. See "Clerk Auth Migration" in AGENTS.md for the two supported ways to keep RLS working (Supabase's native third-party Clerk integration, or backend-only authorization with RLS as defense-in-depth). All `auth_user_id UUID ... FK → auth.users` rows below and all `auth.uid()` policy expressions should be read as `auth_user_id TEXT` (no FK) and `auth.jwt()->>'sub'` respectively once the migration lands.
+> **Auth provider note:** Clerk is the identity provider. `volunteers.auth_user_id` and `ngos.auth_user_id` store Clerk user IDs as `TEXT`; there is no local `auth.users` table. Express verifies Clerk session tokens and performs authorization server-side. Supabase PostgreSQL/Storage/pgvector remain the data and storage layer.
+>
+> **Location note:** Volunteers store an exact profile pin plus a cached `"City, Country"` label. NGOs do not have a profile location. Project location is set by the NGO during project creation and stored as the exact project pin plus its `"City, Country"` label. Availability is not stored anywhere in the project/database model.
 
 ## Extensions
 
@@ -13,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";      -- gen_random_uuid() fallback
 ## Entity-Relationship Diagram
 
 ```
-auth.users (Supabase Auth)
+Clerk (external identity)
     │
     ├──1:1── volunteers
     │             │
@@ -51,22 +53,21 @@ CREATE TYPE document_status AS ENUM ('uploaded', 'processing', 'ready', 'failed'
 
 ### `volunteers`
 
-Extended profile for volunteer users. Links 1:1 to `auth.users`.
+Extended profile for volunteer users. Links 1:1 to a Clerk identity via `auth_user_id`.
 
 | Column           | Type             | Constraints                          | Notes                         |
 |------------------|------------------|--------------------------------------|-------------------------------|
 | `id`             | `UUID`           | PK, DEFAULT `gen_random_uuid()`     |                               |
-| `auth_user_id`   | `UUID`           | UNIQUE, NOT NULL, FK → `auth.users` | Supabase Auth user ID         |
+| `auth_user_id`   | `TEXT`           | UNIQUE, NOT NULL                     | Clerk user ID                 |
 | `full_name`      | `TEXT`           | NOT NULL                             |                               |
 | `email`          | `TEXT`           | NOT NULL, UNIQUE                     | Denormalized from auth        |
 | `phone`          | `TEXT`           |                                      | Optional                      |
 | `skills`         | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"teaching","design"}`  |
 | `interests`      | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
 | `experience`     | `TEXT`           |                                      | Free-text experience summary  |
-| `availability`   | `JSONB`          | NOT NULL, DEFAULT `'{}'`            | See availability schema below|
-| `location_lat`   | `DOUBLE PRECISION`|                                     | Exact pin dropped on map (OpenStreetMap/Leaflet), not a city centroid |
-| `location_lng`   | `DOUBLE PRECISION`|                                     | Exact pin dropped on map     |
-| `location_name`  | `TEXT`           |                                      | Format: `"City, Country"` (e.g. `"Karachi, Pakistan"`) — resolved via reverse geocoding when the pin is dropped |
+| `location_lat`   | `DOUBLE PRECISION`|                                     | Exact volunteer pin selected with MapLibre/OpenFreeMap |
+| `location_lng`   | `DOUBLE PRECISION`|                                     | Exact volunteer pin selected with MapLibre/OpenFreeMap |
+| `location_name`  | `TEXT`           |                                      | Format: `"City, Country"` (e.g. `"Karachi, Pakistan"`) — resolved via BigDataCloud reverse geocoding when the pin is dropped |
 | `age`  | `INTEGER`        | CHECK (`age >= 15 AND age <= 100`)  | Direct integer age, used as-is for eligibility checks (no DOB math) |
 | `onboarding_complete` | `BOOLEAN`  | NOT NULL, DEFAULT `false`           | Gates access to features      |
 | `created_at`     | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                               |
@@ -85,23 +86,21 @@ Extended profile for volunteer users. Links 1:1 to `auth.users`.
 
 ### `ngos`
 
-Organization profile for NGO users. Links 1:1 to `auth.users`.
+Organization profile for NGO users. Links 1:1 to a Clerk identity via `auth_user_id`.
 
 | Column             | Type             | Constraints                          | Notes                       |
 |--------------------|------------------|--------------------------------------|-----------------------------|
 | `id`               | `UUID`           | PK, DEFAULT `gen_random_uuid()`     |                             |
-| `auth_user_id`     | `UUID`           | UNIQUE, NOT NULL, FK → `auth.users` |                             |
+| `auth_user_id`     | `TEXT`           | UNIQUE, NOT NULL                     | Clerk user ID               |
 | `name`             | `TEXT`           | NOT NULL                             | Organization name           |
 | `email`            | `TEXT`           | NOT NULL, UNIQUE                     | Contact email               |
 | `description`      | `TEXT`           |                                      | Organization description    |
+| `logo_url`         | `TEXT`           |                                      | Optional NGO logo URL |
 | `category`      | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
 | `mission`          | `TEXT`           |                                      | Mission statement           |
 | `website`          | `TEXT`           |                                      |                             |
 | `phone`            | `TEXT`           |                                      |                             |
 | `registration_number` | `TEXT`        |                                      | Legal registration ID       |
-| `location_name`    | `TEXT`           |                                      | Format: `"City, Country"`   |
-| `location_lat`     | `DOUBLE PRECISION`|                                     | Exact pin from map picker    |
-| `location_lng`     | `DOUBLE PRECISION`|                                     | Exact pin from map picker    |
 | `onboarding_complete` | `BOOLEAN`     | NOT NULL, DEFAULT `false`           |                             |
 | `created_at`       | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                             |
 | `updated_at`       | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                             |
@@ -127,6 +126,7 @@ Projects created by NGOs with a status lifecycle.
 | `responsibilities`  | `TEXT[]`          | NOT NULL, DEFAULT `'{}'`            | Task list                    |
 | `eligibility`       | `JSONB`           | NOT NULL, DEFAULT `'{}'`            | See schema below             |
 | `capacity`          | `INTEGER`         | NOT NULL, CHECK (`capacity > 0`)    | Max volunteers               |
+| `whatsapp_group_url` | `TEXT`         |                                      | Optional WhatsApp group URL |
 | `status`            | `project_status`  | NOT NULL, DEFAULT `'draft'`         | Lifecycle state              |
 | `start_date`        | `DATE`            | NOT NULL                             |                              |
 | `end_date`          | `DATE`            | NOT NULL                             |                              |
@@ -223,7 +223,7 @@ Time-limited tokens encoded in QR codes for each attendance event.
 | `event_date`  | `DATE`           | NOT NULL                             |                              |
 | `window_start`| `TIMESTAMPTZ`    | NOT NULL                             | Earliest valid check-in      |
 | `window_end`  | `TIMESTAMPTZ`    | NOT NULL                             | Latest valid check-in        |
-| `created_by`  | `UUID`           | NOT NULL, FK → `auth.users`         |                              |
+| `created_by`  | `TEXT`           | NOT NULL                             | Clerk user ID who created the event |                              |
 | `created_at`  | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                              |
 
 **Indexes:**
@@ -294,7 +294,7 @@ Cached semantic embedding of a volunteer's profile for matching.
 | `content_hash`  | `TEXT`         | NOT NULL                             | Hash of input text — detect changes |
 | `updated_at`    | `TIMESTAMPTZ`  | NOT NULL, DEFAULT `now()`           |                              |
 
-**Embedding input text:** Concatenation of `skills`, `interests`, and `experience` (free-text). Regenerated only when one of these three fields changes (see AGENTS.md AI section). Past registrations/attendance are deliberately excluded from the embedding for MVP — see "Embedding design" discussion.
+**Embedding input text:** Concatenation of `skills`, `interests`, and `experience` (free-text) only; never location or availability. Regenerated only when one of these three fields changes (see AGENTS.md AI section). Past registrations/attendance are deliberately excluded from the embedding for MVP — see "Embedding design" discussion.
 
 **Indexes:**
 - `idx_volunteer_embeddings_embedding` — using ivfflat on `embedding vector_cosine_ops`
@@ -313,7 +313,7 @@ Cached semantic embedding of a project for matching.
 | `content_hash`  | `TEXT`         | NOT NULL                             | Hash of input text — detect changes |
 | `updated_at`    | `TIMESTAMPTZ`  | NOT NULL, DEFAULT `now()`           |                              |
 
-**Embedding input text:** Concatenation of `title`, `description`, `category`, `required_skills`, and `responsibilities`.
+**Embedding input text:** Concatenation of `title`, `description`, `category`, `required_skills`, and `responsibilities` only; never location or availability.
 
 **Indexes:**
 - `idx_project_embeddings_embedding` — using ivfflat on `embedding vector_cosine_ops`
@@ -322,81 +322,9 @@ Cached semantic embedding of a project for matching.
 
 ## Row Level Security (RLS) Policies
 
-All tables have RLS enabled. Policies use `auth.uid()` to identify the current user.
+The MVP uses **backend-only authorization**. Express verifies Clerk tokens and performs all authorization before using the Supabase service-role client. RLS remains enabled with default-deny policies as defense-in-depth against accidental direct client access.
 
-### `volunteers`
-
-| Policy                 | Operation | Using                                           |
-|------------------------|-----------|-------------------------------------------------|
-| `volunteers_select_own`| SELECT    | `auth_user_id = auth.uid()`                     |
-| `volunteers_insert_own`| INSERT    | `auth_user_id = auth.uid()`                     |
-| `volunteers_update_own`| UPDATE    | `auth_user_id = auth.uid()`                     |
-| `volunteers_select_public` | SELECT | `onboarding_complete = true` (for matching/discovery, limited columns) |
-
-### `ngos`
-
-| Policy              | Operation | Using                                   |
-|---------------------|-----------|-----------------------------------------|
-| `ngos_select_own`   | SELECT    | `auth_user_id = auth.uid()`             |
-| `ngos_insert_own`   | INSERT    | `auth_user_id = auth.uid()`             |
-| `ngos_update_own`   | UPDATE    | `auth_user_id = auth.uid()`             |
-| `ngos_select_public`| SELECT    | `onboarding_complete = true` (limited columns: name, description, categories, logo) |
-
-### `projects`
-
-| Policy                  | Operation | Using                                                   |
-|-------------------------|-----------|---------------------------------------------------------|
-| `projects_select_own`   | SELECT    | `ngo_id IN (SELECT id FROM ngos WHERE auth_user_id = auth.uid())` |
-| `projects_insert_own`   | INSERT    | `ngo_id IN (SELECT id FROM ngos WHERE auth_user_id = auth.uid())` |
-| `projects_update_own`   | UPDATE    | Same as above                                           |
-| `projects_delete_own`   | DELETE    | Same as above                                           |
-| `projects_select_published` | SELECT | `status IN ('published', 'active', 'completed')` (all authenticated users) |
-
-### `registrations`
-
-| Policy                          | Operation | Using                                                   |
-|---------------------------------|-----------|---------------------------------------------------------|
-| `registrations_select_own`      | SELECT    | `volunteer_id IN (SELECT id FROM volunteers WHERE auth_user_id = auth.uid())` |
-| `registrations_insert_own`      | INSERT    | `volunteer_id IN (SELECT id FROM volunteers WHERE auth_user_id = auth.uid())` |
-| `registrations_select_ngo`      | SELECT    | `project_id IN (SELECT p.id FROM projects p JOIN ngos n ON p.ngo_id = n.id WHERE n.auth_user_id = auth.uid())` |
-| `registrations_update_own`      | UPDATE    | Same as `registrations_select_own` (volunteer can cancel)|
-
-### `attendance`
-
-| Policy                     | Operation | Using                                                   |
-|----------------------------|-----------|---------------------------------------------------------|
-| `attendance_select_own`    | SELECT    | `volunteer_id IN (SELECT id FROM volunteers WHERE auth_user_id = auth.uid())` |
-| `attendance_insert_service`| INSERT    | Service role only (backend creates records)             |
-| `attendance_update_service`| UPDATE    | Service role only (backend updates check-out)           |
-| `attendance_select_ngo`    | SELECT    | `project_id IN (SELECT p.id FROM projects p JOIN ngos n ON p.ngo_id = n.id WHERE n.auth_user_id = auth.uid())` |
-
-### `attendance_tokens`
-
-| Policy                       | Operation | Using                                  |
-|------------------------------|-----------|----------------------------------------|
-| `attendance_tokens_service`  | ALL       | Service role only                      |
-| `attendance_tokens_ngo_select` | SELECT  | `project_id IN (SELECT p.id FROM projects p JOIN ngos n ON p.ngo_id = n.id WHERE n.auth_user_id = auth.uid())` |
-
-### `knowledge_documents`
-
-| Policy                          | Operation | Using                                  |
-|---------------------------------|-----------|----------------------------------------|
-| `knowledge_docs_ngo_manage`     | ALL       | `ngo_id IN (SELECT id FROM ngos WHERE auth_user_id = auth.uid())` |
-
-### `knowledge_chunks`
-
-| Policy                       | Operation | Using                                   |
-|------------------------------|-----------|-----------------------------------------|
-| `knowledge_chunks_ngo_manage`| ALL       | `ngo_id IN (SELECT id FROM ngos WHERE auth_user_id = auth.uid())` |
-| `knowledge_chunks_service_read`| SELECT  | Service role only (RAG queries via service role client) |
-
-### `volunteer_embeddings` / `project_embeddings`
-
-| Policy                       | Operation | Using                                  |
-|------------------------------|-----------|----------------------------------------|
-| `embeddings_service`         | ALL       | Service role only                      |
-
-All embedding operations (read/write for matching) go through the backend service role client — never directly from the frontend.
+No frontend code queries Supabase directly, so application authorization is enforced in the backend rather than with `auth.uid()` policies. Embedding tables are service-role only.
 
 ## Authorization Matrix
 

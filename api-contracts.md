@@ -45,75 +45,7 @@
 
 ## Auth Module — `/api/auth`
 
-> **Clerk migration note:** With Clerk, sign-up/sign-in/session-refresh are handled client-side by Clerk's React SDK (`@clerk/clerk-react`) and Clerk's own hosted UI — the backend no longer needs `/signup`, `/login`, or `/refresh` endpoints, since Clerk issues and refreshes the session token directly to the browser. Keep only a role-resolution endpoint: `GET /api/auth/me` (below) still applies as-is — the backend verifies the Clerk token via `@clerk/backend`/`clerk-sdk-node`, reads `role` from Clerk's `publicMetadata` (set at sign-up via a Clerk webhook or during onboarding), and returns the matching `volunteers`/`ngos` profile row keyed by `auth_user_id = clerk_user_id`. The `signup`/`login`/`logout`/`refresh` sections below describe the previous Supabase-Auth-based flow and can be removed once the frontend fully switches to Clerk's components.
-
-### `POST /api/auth/signup`
-
-Register a new user account.
-
-**Auth:** None (public)
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securePassword123",
-  "role": "volunteer"          // "volunteer" | "ngo"
-}
-```
-
-**Response (201):**
-```json
-{
-  "success": true,
-  "data": {
-    "user": { "id": "uuid", "email": "user@example.com", "role": "volunteer" },
-    "session": { "access_token": "...", "refresh_token": "..." }
-  }
-}
-```
-
----
-
-### `POST /api/auth/login`
-
-Authenticate an existing user.
-
-**Auth:** None (public)
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securePassword123"
-}
-```
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "user": { "id": "uuid", "email": "user@example.com", "role": "volunteer" },
-    "session": { "access_token": "...", "refresh_token": "..." }
-  }
-}
-```
-
----
-
-### `POST /api/auth/logout`
-
-Invalidate the current session.
-
-**Auth:** Required
-
-**Response (200):**
-```json
-{ "success": true, "data": { "message": "Logged out successfully" } }
-```
-
----
+Clerk owns sign-up, sign-in, session refresh, and logout in the frontend. The backend does not implement password-based `/signup`, `/login`, `/refresh`, or logout endpoints. Protected API requests carry a Clerk session token verified server-side.
 
 ### `GET /api/auth/me`
 
@@ -139,31 +71,6 @@ Get current authenticated user with role and profile.
 ```
 
 The `profile` field contains the volunteer or NGO profile object based on the user's role.
-
----
-
-### `POST /api/auth/refresh`
-
-Refresh the access token using a refresh token.
-
-**Auth:** None (uses refresh token in body)
-
-**Request:**
-```json
-{ "refresh_token": "..." }
-```
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "session": { "access_token": "...", "refresh_token": "..." }
-  }
-}
-```
-
----
 
 ## Volunteers Module — `/api/volunteers`
 
@@ -226,6 +133,10 @@ All fields except `full_name` are optional. Setting sufficient fields sets `onbo
 ```
 
 ---
+
+### Volunteer Location Pin
+
+During volunteer onboarding/profile, the volunteer selects an exact location on the map. The frontend sends `location_lat`/`location_lng`; the backend reverse-geocodes the pin to `location_name = "City, Country"` and stores all three values. The volunteer can update the pin later.
 
 ### `PUT /api/volunteers/profile`
 
@@ -354,8 +265,7 @@ Get a single NGO's public profile.
     "mission": "...",
     "logo_url": "...",
     "website": "...",
-    "categories": ["education"],
-    "location_name": "Jeddah, Saudi Arabia"
+    "categories": ["education"]
   }
 }
 ```
@@ -390,7 +300,7 @@ List projects. Scope depends on caller role:
       "required_skills": ["teaching"],
       "capacity": 20,
       "registered_count": 12,
-      "whatsapp_number": "+123456789",
+      "whatsapp_group_url": "https://chat.whatsapp.com/example",
       "status": "active",
       "start_date": "2026-09-15",
       "end_date": "2026-12-15",
@@ -424,7 +334,7 @@ Get full project details.
     "responsibilities": ["Tutor students in math", "Prepare lesson plans"],
     "eligibility": { "min_age": 18, "required_languages": ["en"] },
     "capacity": 20,
-    "whatsapp_number": "+123456789",
+    "whatsapp_group_url": "https://chat.whatsapp.com/example",
     "registered_count": 12,
     "status": "active",
     "start_date": "2026-09-15",
@@ -457,7 +367,7 @@ Create a new project (defaults to `draft` status).
   "responsibilities": ["Tutor students", "Prepare materials"],
   "eligibility": { "min_age": 18 },
   "capacity": 20,
-  "whatsapp_number": "+123456789",
+  "whatsapp_group_url": "https://chat.whatsapp.com/example",
   "start_date": "2026-09-15",
   "end_date": "2026-12-15",
   "location_name": "Jeddah, Saudi Arabia",
@@ -467,7 +377,7 @@ Create a new project (defaults to `draft` status).
 }
 ```
 
-Required: `title`, `description`, `category`, `capacity`, `start_date`, `end_date`. Other fields optional.
+Required: `title`, `description`, `category`, `capacity`, `start_date`, `end_date`, `location_name`, `location_lat`, `location_lng`. `whatsapp_group_url` is optional. The project location is selected with the map pin and `location_name` must be `"City, Country"`.
 
 **Response (201):**
 ```json
@@ -709,12 +619,12 @@ Get the QR code data for an attendance event.
   "data": {
     "event_id": "uuid",
     "token": "abc123random",
-    "qr_data": "qadam://attendance/abc123random"
+    "qr_data": "qadam://attendance/550e8400-e29b-41d4-a716-446655440000/abc123random"
   }
 }
 ```
 
-The frontend renders this `qr_data` string as a QR code using the `qrcode` library.
+The frontend renders this `qr_data` string as a QR code using the `qrcode` library. QR payload format is `qadam://attendance/{event_id}/{token}`.
 
 ---
 
@@ -753,11 +663,11 @@ Check in a volunteer by scanning a QR token.
 
 **Request:**
 ```json
-{ "token": "abc123random" }
+{ "event_id": "550e8400-e29b-41d4-a716-446655440000", "token": "abc123random" }
 ```
 
 **Server-side validation:**
-1. Token exists and is valid
+1. `event_id` + token identify an existing valid attendance event
 2. Volunteer has a confirmed registration for this project
 3. Event is active (current time is within `window_start` and `window_end`)
 4. Volunteer has not already checked in for this event (duplicate check)
@@ -788,7 +698,7 @@ Check out a previously checked-in volunteer.
 
 **Request:**
 ```json
-{ "token": "abc123random" }
+{ "event_id": "550e8400-e29b-41d4-a716-446655440000", "token": "abc123random" }
 ```
 
 **Server-side validation:**
