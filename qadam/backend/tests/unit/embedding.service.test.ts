@@ -9,6 +9,20 @@ import { AIProviderError } from "../../src/utils/errors";
  * additionally mock the Supabase client with a queue-based builder.
  */
 
+// -- AI config mock (provide a valid-looking HF token) -------------------------
+
+vi.mock("../../src/config/ai", () => ({
+  aiConfig: {
+    huggingFace: {
+      token: "hf_test_token_for_unit_tests",
+      embeddingModel: "sentence-transformers/all-MiniLM-L6-v2",
+    },
+    gemini: { apiKey: "test", model: "test" },
+    qwen: { apiKey: "test", model: "test" },
+    bigDataCloud: { apiKey: "placeholder" },
+  },
+}));
+
 // -- Supabase mock (queue-based, same pattern as registration tests) ----------
 
 type QueryResult = { data?: unknown; error?: unknown; count?: number | null };
@@ -240,7 +254,7 @@ describe("generateEmbedding", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toContain("huggingface.co");
-    expect(url).toContain("feature-extraction");
+    expect(url).toContain("all-MiniLM-L6-v2");
     expect(options.headers.Authorization).toMatch(/^Bearer .+/);
     expect(options.headers["Content-Type"]).toBe("application/json");
   });

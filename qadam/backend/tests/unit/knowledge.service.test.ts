@@ -123,7 +123,6 @@ vi.mock("../../src/services/ai/embedding.service", () => ({
 }));
 
 import * as supabaseModule from "../../src/lib/supabase";
-import { generateEmbedding } from "../../src/services/ai/embedding.service";
 import {
   chunkText,
   extractText,
@@ -295,16 +294,16 @@ describe("uploadDocument", () => {
     ).rejects.toMatchObject({ code: "FILE_TOO_LARGE" });
   });
 
-  it("uploads a TXT file, ingests, and returns the document with ready status", async () => {
+  it("uploads a TXT file, stores it, and returns status uploaded (ingestion runs out-of-band)", async () => {
     const fileContent = "This is test content for the knowledge base.";
     const fileBuffer = Buffer.from(fileContent, "utf-8");
 
     // Queue Supabase responses for the happy path.
-    // Each builder (one per supabase.from() call) consumes exactly 1 queue
-    // item — via .single()/.maybeSingle() for SELECT queries, or via .then
-    // for write chains. The consumed flag prevents double-consumption.
-    // knowledge_documents: insert-select-single (1) + 3 updates (3) + reload-select-single (1) = 5
-    // knowledge_chunks: insert (1)
+    // With fire-and-forget ingestion, uploadDocument only does:
+    //   1. insert().select("*").single() — create document record
+    //   2. storage.upload()
+    //   3. update({storage_path}).eq() — write storage path
+    // Ingestion (status updates, chunk inserts) runs in setImmediate.
     mock.queue("knowledge_documents", [
       // 1. insert().select("*").single() — created document
       {
@@ -322,30 +321,9 @@ describe("uploadDocument", () => {
         },
         error: null,
       },
-      // 2. update({storage_path}).eq() — write, default result
+      // 2. update({storage_path}).eq() — write chain
       { data: null, error: null },
-      // 3. update({status: processing}).eq() — inside ingestDocument
-      { data: null, error: null },
-      // 4. update({status: ready}).eq() — after chunks inserted
-      { data: null, error: null },
-      // 5. select().eq().single() — reload document after ingestion
-      {
-        data: {
-          id: "doc-1",
-          ngo_id: "ngo-1",
-          file_name: "test.txt",
-          file_type: "text/plain",
-          file_size: fileBuffer.length,
-          storage_path: "ngo-1/doc-1/test.txt",
-          status: "ready",
-          chunk_count: 1,
-          error_message: null,
-          created_at: "2026-09-03T10:00:00Z",
-        },
-        error: null,
-      },
     ]);
-    mock.queue("knowledge_chunks", [{ data: null, error: null }]);
 
     const result = await uploadDocument(ngoIdentity(), {
       buffer: fileBuffer,
@@ -354,7 +332,8 @@ describe("uploadDocument", () => {
       size: fileBuffer.length,
     });
 
-    expect(result.status).toBe("ready");
+    // Returns immediately with status "uploaded" — frontend polls for changes
+    expect(result.status).toBe("uploaded");
     expect(result.id).toBe("doc-1");
     expect(result.file_name).toBe("test.txt");
 
@@ -362,12 +341,6 @@ describe("uploadDocument", () => {
     expect(mock.calls.storageUploads).toHaveLength(1);
     expect(mock.calls.storageUploads[0]!.path).toContain("ngo-1");
     expect(mock.calls.storageUploads[0]!.contentType).toBe("text/plain");
-
-    // Verify embedding was called for the chunk(s)
-    expect(generateEmbedding).toHaveBeenCalled();
-
-    // Verify chunks were inserted
-    expect(mock.calls.inserts["knowledge_chunks"]).toBeDefined();
   });
 });
 

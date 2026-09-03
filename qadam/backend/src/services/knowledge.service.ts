@@ -31,6 +31,36 @@ import { AppError, AuthorizationError, NotFoundError } from "../utils/errors";
 /** Supabase Storage bucket for knowledge documents. */
 const STORAGE_BUCKET = "knowledge";
 
+// -- Bucket bootstrap -----------------------------------------------------------
+
+/**
+ * Ensure the "knowledge" storage bucket exists in Supabase. Creates it
+ * (private, 10 MB file limit) if missing. Called once at server startup
+ * so document uploads never fail with "Bucket not found".
+ */
+export async function ensureStorageBucket(): Promise<void> {
+  const { data: buckets, error } = await supabase.storage.listBuckets();
+  if (error) {
+    logger.warn("Could not list storage buckets", { error: error.message });
+    return;
+  }
+  if (buckets?.some((b) => b.name === STORAGE_BUCKET)) {
+    return;
+  }
+  const { error: createError } = await supabase.storage.createBucket(
+    STORAGE_BUCKET,
+    { public: false, fileSizeLimit: 10 * 1024 * 1024 }
+  );
+  if (createError) {
+    logger.warn("Could not auto-create storage bucket", {
+      bucket: STORAGE_BUCKET,
+      error: createError.message,
+    });
+  } else {
+    logger.info("Created Supabase storage bucket", { bucket: STORAGE_BUCKET });
+  }
+}
+
 /** ~500 tokens ~ 2000 characters (1 token ~ 4 chars). */
 const CHUNK_SIZE_CHARS = 2000;
 
@@ -93,9 +123,34 @@ export async function extractText(
 ): Promise<string> {
   switch (mimeType) {
     case "application/pdf": {
-      const pdfParse = await import("pdf-parse");
-      const data = await pdfParse.default(buffer);
-      return data.text;
+      // pdf-parse v2.x uses a class-based API (PDFParse class with getText()).
+      // The bundled .d.cts types expose this, but TS may resolve stale v1.x
+      // types via moduleResolution "node" — use a runtime cast for safety.
+      const mod = await import("pdf-parse");
+      const PDFParseClass = (mod as Record<string, unknown>).PDFParse as
+        | (new (opts: { data: Uint8Array }) => {
+            getText(): Promise<{ text: string }>;
+            destroy(): Promise<void>;
+          })
+        | undefined;
+      if (PDFParseClass) {
+        const parser = new PDFParseClass({ data: new Uint8Array(buffer) });
+        try {
+          const result = await parser.getText();
+          return result.text;
+        } finally {
+          await parser.destroy();
+        }
+      }
+      // Fallback: older pdf-parse v1.x exported a default function.
+      const legacy = (mod as Record<string, unknown>).default as
+        | ((buf: Buffer) => Promise<{ text: string }>)
+        | undefined;
+      if (typeof legacy === "function") {
+        const data = await legacy(buffer);
+        return data.text;
+      }
+      throw new AppError("pdf-parse module has no recognised text extraction API", 500);
     }
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
       const mammoth = await import("mammoth");
@@ -246,9 +301,8 @@ async function ingestDocument(
       ngoId,
       error: errorMessage,
     });
-
-    // Re-throw so the caller can return an appropriate error response
-    throw err;
+    // Fire-and-forget: errors are recorded in the document row status.
+    // Do not re-throw — the upload response was already sent.
   }
 }
 
@@ -257,8 +311,9 @@ async function ingestDocument(
 /**
  * POST /api/knowledge/documents
  *
- * Upload a document and run the full ingestion pipeline synchronously.
- * Returns the document record with status "ready" on success.
+ * Upload a document and kick off ingestion out-of-band.
+ * Returns 201 immediately with status "uploaded"; the frontend polls
+ * for status changes (uploaded → processing → ready | failed).
  */
 export async function uploadDocument(
   identity: RequestIdentity,
@@ -311,54 +366,43 @@ export async function uploadDocument(
   const doc = docData as unknown as KnowledgeDocument;
   const storagePath = `${ngoId}/${doc.id}/${file.originalname}`;
 
-  try {
-    // 2. Upload file to Supabase Storage
-    const { error: storageError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(storagePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
-    if (storageError) {
-      throw new AppError(
-        `Failed to upload file to storage: ${storageError.message}`,
-        500
-      );
-    }
-
-    // 3. Update document with storage path
+  // 2. Upload file to Supabase Storage
+  const { error: storageError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
+  if (storageError) {
+    // Clean up the document record on storage failure
     await supabase
       .from("knowledge_documents")
-      .update({ storage_path: storagePath })
+      .delete()
       .eq("id", doc.id);
-
-    // 4. Run ingestion synchronously
-    await ingestDocument(doc.id, ngoId, file.buffer, file.mimetype);
-
-    // 5. Reload and return the updated document
-    const { data: updatedDoc, error: reloadError } = await supabase
-      .from("knowledge_documents")
-      .select("*")
-      .eq("id", doc.id)
-      .single();
-    if (reloadError) {
-      throw new AppError(
-        `Failed to reload document: ${reloadError.message}`,
-        500
-      );
-    }
-
-    return updatedDoc as unknown as KnowledgeDocument;
-  } catch (err) {
-    // Clean up: delete the document record on pre-ingestion failures
-    if (err instanceof AppError && err.code === "FILE_TOO_LARGE") {
-      await supabase
-        .from("knowledge_documents")
-        .delete()
-        .eq("id", doc.id);
-    }
-    throw err;
+    throw new AppError(
+      `Failed to upload file to storage: ${storageError.message}`,
+      500
+    );
   }
+
+  // 3. Update document with storage path
+  await supabase
+    .from("knowledge_documents")
+    .update({ storage_path: storagePath })
+    .eq("id", doc.id);
+
+  // 4. Kick off ingestion out-of-band (fire-and-forget).
+  //    The frontend polls GET /api/knowledge/documents for status changes.
+  const fileBuffer = Buffer.from(file.buffer);
+  const mimeType = file.mimetype;
+  setImmediate(() => {
+    ingestDocument(doc.id, ngoId, fileBuffer, mimeType).catch(() => {
+      // Errors are already logged and recorded in the document row.
+    });
+  });
+
+  // 5. Return immediately with status "uploaded"
+  return doc;
 }
 
 /**

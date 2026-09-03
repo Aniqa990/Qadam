@@ -6,11 +6,15 @@ import { cn } from "@/lib/utils";
 /* ─── Types ─── */
 
 interface ChatSource {
-  type: "knowledge_chunk" | "project";
+  type?: "knowledge_chunk" | "project";
+  document_id?: string;
   document_name?: string;
+  file_name?: string;
+  chunk_id?: string;
   chunk_index?: number;
   project_id?: string;
   project_title?: string;
+  similarity?: number;
 }
 
 interface ChatResponse {
@@ -176,24 +180,29 @@ export default function FloatingAssistant() {
                   {/* Sources */}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1 border-t border-border/50 pt-2">
-                      {msg.sources.map((source, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700"
-                          title={
-                            source.type === "knowledge_chunk"
-                              ? `From: ${source.document_name}`
-                              : `Project: ${source.project_title}`
-                          }
-                        >
-                          {source.type === "knowledge_chunk" ? (
-                            <FileText className="h-3 w-3" aria-hidden="true" />
-                          ) : (
-                            <FolderOpen className="h-3 w-3" aria-hidden="true" />
-                          )}
-                          {source.document_name ?? source.project_title ?? "Source"}
-                        </span>
-                      ))}
+                      {msg.sources.map((source, i) => {
+                        const isKnowledge =
+                          source.type === "knowledge_chunk" || !!source.file_name;
+                        const label =
+                          source.document_name ??
+                          source.file_name ??
+                          source.project_title ??
+                          "Source";
+                        return (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700"
+                            title={isKnowledge ? `From: ${label}` : `Project: ${label}`}
+                          >
+                            {isKnowledge ? (
+                              <FileText className="h-3 w-3" aria-hidden="true" />
+                            ) : (
+                              <FolderOpen className="h-3 w-3" aria-hidden="true" />
+                            )}
+                            {label}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
