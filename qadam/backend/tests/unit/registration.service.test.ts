@@ -1,83 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RequestIdentity } from "../../src/types/auth.types";
 import type { ProjectStatus } from "../../src/types/project.types";
+import type { SupabaseMockAccess } from "./helpers/supabase-mock";
 
 /**
  * Unit tests for registration.service's deterministic guard chain
  * (api-contracts.md POST /api/registrations "Server-side validation").
- * The Supabase client is module-mocked with a queue-based builder: every
- * terminal call (.single/.maybeSingle/direct await) consumes the next queued
- * result for that table, in call order.
+ * The Supabase client is module-mocked with the shared queue-based builder
+ * (tests/unit/helpers/supabase-mock.ts): every terminal call
+ * (.single/.maybeSingle/direct await) consumes the next queued result for
+ * that table, in call order.
  */
 
-type QueryResult = { data?: unknown; error?: unknown; count?: number | null };
-
-vi.mock("../../src/lib/supabase", () => {
-  const queues = new Map<string, QueryResult[]>();
-  const calls: { inserts: Record<string, unknown[]>; updates: Record<string, unknown[]> } = {
-    inserts: {},
-    updates: {},
-  };
-
-  function makeBuilder(table: string): Record<string, unknown> {
-    const builder: Record<string, unknown> = {};
-    const chain = () => builder;
-    const take = (): QueryResult => {
-      const queue = queues.get(table);
-      const next = queue?.shift();
-      return next ?? { data: null, error: null, count: null };
-    };
-
-    builder.select = chain;
-    builder.insert = (args: unknown) => {
-      (calls.inserts[table] ??= []).push(args);
-      return builder;
-    };
-    builder.update = (args: unknown) => {
-      (calls.updates[table] ??= []).push(args);
-      return builder;
-    };
-    builder.delete = chain;
-    builder.eq = chain;
-    builder.in = chain;
-    builder.order = chain;
-    builder.range = chain;
-    builder.single = () => Promise.resolve(take());
-    builder.maybeSingle = () => Promise.resolve(take());
-    // supabase-js builders are thenable (awaited directly for head:true counts)
-    builder.then = (onFulfilled: never, onRejected?: never) =>
-      Promise.resolve(take()).then(onFulfilled, onRejected);
-
-    return builder;
-  }
-
-  const supabase = { from: (table: string) => makeBuilder(table) };
-
-  return {
-    supabase,
-    __mock: {
-      calls,
-      queue(table: string, results: QueryResult[]) {
-        queues.set(table, [...results]);
-      },
-      reset() {
-        queues.clear();
-        calls.inserts = {};
-        calls.updates = {};
-      },
-    },
-  };
+vi.mock("../../src/lib/supabase", async () => {
+  const { createSupabaseMock } = await import("./helpers/supabase-mock");
+  return createSupabaseMock();
 });
 
 import * as supabaseModule from "../../src/lib/supabase";
 import { register, cancelRegistration } from "../../src/services/registration.service";
 import { AuthorizationError, ConflictError, NotFoundError } from "../../src/utils/errors";
 
-const mock = (supabaseModule as unknown as { __mock: {
-  calls: { inserts: Record<string, unknown[]>; updates: Record<string, unknown[]> };
-  queue: (table: string, results: QueryResult[]) => void;
-  reset: () => void;
-} }).__mock;
+const mock = (supabaseModule as unknown as { __mock: SupabaseMockAccess }).__mock;
 
 // -- fixtures ----------------------------------------------------------------
 

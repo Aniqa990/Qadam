@@ -5,6 +5,7 @@ const LINKS = [
   { to: "/ngo/dashboard", label: "Dashboard" },
   { to: "/ngo/projects", label: "My Projects" },
   { to: "/ngo/projects/new", label: "New Project" },
+  { to: "/ngo/profile", label: "Organization" },
 ];
 
 /**

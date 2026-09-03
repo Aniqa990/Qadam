@@ -223,8 +223,9 @@ export async function register(
 
 /**
  * GET /api/registrations - role-scoped listing: volunteers see their own,
- * NGOs see registrations for their own projects (filtered via the embedded
- * project.ngo_id - PostgREST foreign-table filtering).
+ * NGOs see registrations for their own projects. PostgREST cannot filter on
+ * an embedded column (project.ngo_id), so the NGO scope resolves its owned
+ * project ids first and then filters on the plain project_id column.
  */
 export async function listRegistrations(
   identity: RequestIdentity,
@@ -236,7 +237,18 @@ export async function listRegistrations(
   if (identity.role === "volunteer") {
     dbQuery = dbQuery.eq("volunteer_id", identity.domainId);
   } else {
-    dbQuery = dbQuery.eq("project.ngo_id", identity.domainId);
+    const { data: ownProjects, error: ownError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("ngo_id", identity.domainId);
+    if (ownError) {
+      throw new AppError(`Failed to list registrations: ${ownError.message}`, 500);
+    }
+    const ownProjectIds = ((ownProjects ?? []) as { id: string }[]).map((p) => p.id);
+    if (ownProjectIds.length === 0) {
+      return { data: [], page, limit, total: 0 };
+    }
+    dbQuery = dbQuery.in("project_id", ownProjectIds);
   }
   if (query.project_id) {
     dbQuery = dbQuery.eq("project_id", query.project_id);

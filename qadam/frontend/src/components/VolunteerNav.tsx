@@ -5,6 +5,8 @@ const LINKS = [
   { to: "/projects", label: "Browse Projects" },
   { to: "/volunteer/projects", label: "My Projects" },
   { to: "/volunteer/registrations", label: "My Registrations" },
+  { to: "/volunteer/scan", label: "Scan QR" },
+  { to: "/volunteer/profile", label: "Profile" },
 ];
 
 /**
