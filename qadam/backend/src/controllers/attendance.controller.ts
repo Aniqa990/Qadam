@@ -1,0 +1,100 @@
+import type { NextFunction, Request, Response } from "express";
+import type { RequestIdentity } from "../types/auth.types";
+import type { CreateAttendanceEventBody } from "../validators/attendance.validator";
+import * as attendanceService from "../services/attendance.service";
+import { AuthenticationError } from "../utils/errors";
+import { sendPaginated, sendSuccess } from "../utils/response";
+
+/**
+ * Thin HTTP handlers for the attendance module. Controllers only read
+ * validated request data, call the service, and shape the response - all
+ * validation chains and authorization live in attendance.service.ts.
+ */
+
+function identity(req: Request): RequestIdentity {
+  if (!req.identity) {
+    throw new AuthenticationError();
+  }
+  return req.identity;
+}
+
+export async function createEvent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const event = await attendanceService.createAttendanceEvent(
+      identity(req),
+      req.body as CreateAttendanceEventBody
+    );
+    return sendSuccess(res, event, 201);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listEvents(req: Request, res: Response, next: NextFunction) {
+  try {
+    const events = await attendanceService.listAttendanceEvents(identity(req), String(req.query.project_id));
+    return sendSuccess(res, events);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getEventQr(req: Request, res: Response, next: NextFunction) {
+  try {
+    const qr = await attendanceService.getEventQr(identity(req), req.params.eventId as string);
+    return sendSuccess(res, qr);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function stopEvent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await attendanceService.stopAttendanceEvent(identity(req), req.params.eventId as string);
+    return sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function checkIn(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await attendanceService.checkIn(identity(req), req.body);
+    return sendSuccess(res, result, 201);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function checkOut(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await attendanceService.checkOut(identity(req), req.body);
+    return sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listRecords(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { page, limit, project_id, event_id } = req.query as unknown as {
+      page: number;
+      limit: number;
+      project_id?: string;
+      event_id?: string;
+    };
+    const result = await attendanceService.listAttendanceRecords(identity(req), {
+      page,
+      limit,
+      project_id,
+      event_id,
+    });
+    return sendPaginated(res, result.data, {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
