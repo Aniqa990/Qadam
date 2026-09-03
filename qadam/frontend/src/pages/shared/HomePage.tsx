@@ -1,33 +1,58 @@
-import { useEffect, useState } from "react";
-import { useApi } from "@/hooks/useApi";
+import { Navigate } from "react-router-dom";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/useAuth";
-
-type HealthResponse = { status: string; service: string; timestamp: string };
+import LandingPage from "./LandingPage";
 
 /**
- * frontend-routes.md "/" — full HomePage (featured projects, stats) is
- * Phase 4+ scope. For now this confirms the Phase 1/2 pipeline end-to-end:
- * signed in, role resolved, and the backend reachable with an authed call.
+ * Public root route ("/"). Sits OUTSIDE ProtectedLayout in App.tsx so
+ * unauthenticated visitors reach this component directly.
+ *
+ * - While Clerk is initialising (`isLoaded === false`): render nothing to
+ *   prevent any layout flash.
+ * - Signed-in users with a resolved role + completed onboarding are
+ *   redirected instantly to their role-specific dashboard.
+ * - Everyone else (not signed in, or still onboarding) sees the full
+ *   public landing page.
  */
 export default function HomePage() {
-  const { role, profile } = useAuth();
-  const { api } = useApi();
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const { isLoaded: clerkLoaded, isSignedIn } = useClerkAuth();
+  const { isResolving, role, onboardingComplete, error } = useAuth();
 
-  useEffect(() => {
-    api<HealthResponse>("/health").then(setHealth).catch(() => {});
-  }, [api]);
+  // Wait for Clerk to initialise — render nothing to prevent flash.
+  if (!clerkLoaded) return null;
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-3xl font-bold text-primary">Qadam</h1>
-      <p className="text-muted-foreground">
-        Signed in as <strong>{role}</strong>
-        {profile ? ` — onboarding_complete: ${String(profile.onboarding_complete)}` : ""}
-      </p>
-      {health && (
-        <pre className="rounded-md bg-secondary p-4 text-sm">{JSON.stringify(health, null, 2)}</pre>
-      )}
-    </main>
-  );
+  // Authenticated user: wait for backend role resolution, then redirect.
+  if (isSignedIn) {
+    if (isResolving) return null;
+
+    if (error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center p-8 text-center text-destructive">
+          Could not load your account: {error}
+        </div>
+      );
+    }
+
+    if (role === "volunteer" && onboardingComplete) {
+      return <Navigate to="/volunteer/projects" replace />;
+    }
+    if (role === "ngo" && onboardingComplete) {
+      return <Navigate to="/ngo/dashboard" replace />;
+    }
+    if (role === "volunteer") {
+      return <Navigate to="/volunteer/onboarding" replace />;
+    }
+    if (role === "ngo") {
+      return <Navigate to="/ngo/onboarding" replace />;
+    }
+    // Signed in but role not yet resolved (e.g. webhook pending)
+    // — show a brief waiting state rather than the landing page.
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        Setting up your account...
+      </div>
+    );
+  }
+
+  return <LandingPage />;
 }

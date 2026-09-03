@@ -52,11 +52,10 @@ export class ConflictError extends AppError {
 /**
  * Codes match ai-architecture.md's AIProviderError contract exactly
  * (TIMEOUT / RATE_LIMITED / MALFORMED_RESPONSE / EMPTY_RESPONSE / NETWORK_ERROR).
- * Thrown internally by services/ai/gemini.service.ts and qwen.service.ts
- * (Phase 7); llm.service.ts catches this to decide whether to fall back.
- * Not an AppError subclass - it's caught and translated into one
- * (502/504/429 per ai-architecture.md's error handling switch) at the
- * copilot/rag service boundary, so it never leaks its internal shape to a route.
+ * Thrown by services/ai/gemini.service.ts, qwen.service.ts, and
+ * embedding.service.ts (Hugging Face); llm.service.ts catches this for
+ * Gemini/Qwen fallback, while embedding.service callers log-and-continue
+ * so an HF outage never blocks core writes.
  */
 export type AIProviderErrorCode =
   | "TIMEOUT"
@@ -65,10 +64,12 @@ export type AIProviderErrorCode =
   | "EMPTY_RESPONSE"
   | "NETWORK_ERROR";
 
+export type AIProvider = "gemini" | "qwen" | "huggingface";
+
 export class AIProviderError extends Error {
   code: AIProviderErrorCode;
-  provider: "gemini" | "qwen";
-  constructor(code: AIProviderErrorCode, provider: "gemini" | "qwen", message?: string) {
+  provider: AIProvider;
+  constructor(code: AIProviderErrorCode, provider: AIProvider, message?: string) {
     super(message ?? `AI provider error (${provider}): ${code}`);
     this.name = "AIProviderError";
     this.code = code;

@@ -1,15 +1,17 @@
 import { Navigate, Outlet } from "react-router-dom";
+import AppHeader from "@/components/AppHeader";
+import FloatingAssistant from "@/components/FloatingAssistant";
 import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Wraps all authenticated routes (frontend-routes.md "Route Guards
- * Summary"). Redirects to /login if not authenticated. Nav bar + the
- * floating Knowledge Assistant widget mount here in later phases (Phase 3
- * for nav, Phase 7 for the assistant) - kept out for now since Phase 2
- * scope is auth only, not UI chrome.
+ * Summary"). Redirects to /login if not authenticated. Renders role-aware
+ * navigation (AppHeader) when the user has completed onboarding,
+ * so every protected page gets consistent chrome without importing nav
+ * directly.
  */
 export default function ProtectedLayout() {
-  const { isLoaded, isSignedIn, isResolving, error } = useAuth();
+  const { isLoaded, isSignedIn, isResolving, role, onboardingComplete, error } = useAuth();
 
   if (!isLoaded || isResolving) {
     return (
@@ -31,11 +33,15 @@ export default function ProtectedLayout() {
     );
   }
 
+  // Show role-specific nav only when the user has completed onboarding.
+  // Onboarding pages self-check and redirect, so they never render with nav.
+  const showNav = onboardingComplete;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* <NavBar /> - Phase 3 */}
+      {showNav && role && <AppHeader role={role} />}
       <Outlet />
-      {/* <FloatingAssistant /> - Phase 7 */}
+      {showNav && <FloatingAssistant />}
     </div>
   );
 }

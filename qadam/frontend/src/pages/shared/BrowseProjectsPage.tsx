@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import NgoNav from "@/components/NgoNav";
 import ProjectCard from "@/components/ProjectCard";
-import VolunteerNav from "@/components/VolunteerNav";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
-import { useAuth } from "@/hooks/useAuth";
 import { listProjects, PROJECT_CATEGORIES } from "@/lib/projects";
 import type { PaginationInfo, ProjectSummary } from "@/types/project";
 
@@ -45,7 +42,6 @@ const inputClass =
  */
 export default function BrowseProjectsPage() {
   const { apiList } = useApi();
-  const { role, isResolving } = useAuth();
 
   const [draft, setDraft] = useState<FilterValues>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterValues>(EMPTY_FILTERS);
@@ -89,12 +85,8 @@ export default function BrowseProjectsPage() {
     setPage(1);
   }
 
-  const nav =
-    !isResolving && role === "ngo" ? <NgoNav /> : !isResolving && role === "volunteer" ? <VolunteerNav /> : null;
-
   return (
     <>
-      {nav}
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
         <div>
           <h1 className="text-2xl font-bold">Browse projects</h1>

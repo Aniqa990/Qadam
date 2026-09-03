@@ -10,15 +10,17 @@ import {
 } from "../../utils/errors";
 
 /**
- * Deterministic volunteer matching engine (Phase 5 — ai-architecture.md).
+ * Deterministic volunteer matching engine (ai-architecture.md).
  *
  * Pipeline:
- *   1. Deterministic filtering (hard constraints)
- *   2. Multi-factor scoring (weighted composite)
+ *   1. Deterministic filtering (hard constraints — always run first)
+ *   2. Multi-factor scoring (weighted composite: distance, skills,
+ *      interests, pgvector embedding similarity)
  *   3. Ranking + explanation
  *
- * Embedding similarity is stubbed at 0 until Task B wires the real pipeline.
- * No LLM is used for ranking.
+ * Embedding similarity uses real pgvector cosine similarity when both
+ * the project and volunteer embeddings exist; gracefully defaults to 0
+ * when either side is missing an embedding. No LLM is used for ranking.
  */
 
 // -- Scoring weights (centralised per AGENTS.md) --------------------------------
@@ -364,8 +366,8 @@ async function fetchEmbeddingSimilarity(
  * matching pipeline: deterministic filtering → multi-factor scoring →
  * ranking + explanation.
  *
- * Embedding similarity is stubbed at 0 until the embedding pipeline is
- * wired in Task B.
+ * Embedding similarity uses real pgvector cosine similarity when stored
+ * embeddings exist; defaults to 0 when either side has no embedding yet.
  */
 export async function matchVolunteers(
   identity: RequestIdentity,
@@ -459,7 +461,9 @@ export async function matchVolunteers(
     return true;
   });
 
-  // 6. Best-effort embedding similarity (stub → empty map → scores default to 0).
+  // 6. Best-effort embedding similarity via pgvector (gracefully defaults to 0
+  //    when embeddings are missing or the lookup fails). Hard filters from
+  //    Step 5 are never replaced by embeddings — they stay mandatory.
   let embeddingMap = new Map<string, number>();
   try {
     const { data: embData } = await supabase
