@@ -62,6 +62,54 @@ cd frontend && npm run dev
 - [ ] Backend refuses to start with a clear error if any required `.env` value is missing (try removing one)
 - [ ] No secrets appear in any `VITE_`-prefixed variable
 
+## Phase 2: Clerk Authentication
+
+### 1. Run the profiles migration
+
+Phase 2's webhook needs somewhere to write, so `volunteers`/`ngos` are pulled
+forward from Phase 3 now (full Phase 3 migration adds the rest of the
+schema later). In the Supabase SQL editor, run:
+
+```
+backend/migrations/0001_profiles.sql
+```
+
+### 2. Configure the Clerk webhook
+
+Clerk needs a **publicly reachable URL** to call `POST /api/auth/webhook` -
+`localhost` won't work directly during local dev. Use a tunnel:
+
+```bash
+# in a third terminal, with the backend running on :4000
+ngrok http 4000
+```
+
+Then in the Clerk dashboard (**Configure → Webhooks**):
+
+1. Add endpoint: `https://<your-ngrok-subdomain>.ngrok.app/api/auth/webhook`
+2. Subscribe to the `user.created` event
+3. Copy the **Signing Secret** into `backend/.env` as `CLERK_WEBHOOK_SECRET`
+
+### 3. Test the flow
+
+1. Go to `http://localhost:5173/register`
+2. Choose **Volunteer** or **NGO**
+3. Complete Clerk's sign-up form
+4. Clerk fires `user.created` → your backend webhook creates the matching
+   row in `volunteers`/`ngos` and promotes `role` from `unsafeMetadata` to
+   `publicMetadata`
+5. You should land on `/` and see "Signed in as volunteer" (or `ngo`)
+
+### 4. Verify Phase 2
+
+- [ ] Signing up as a Volunteer creates a row in `volunteers` with the right `auth_user_id`
+- [ ] Signing up as an NGO creates a row in `ngos` instead
+- [ ] `GET /api/auth/me` (with a valid session token) returns `{ id, email, role, profile }`
+- [ ] Hitting a protected route while signed out redirects to `/login`
+- [ ] A volunteer visiting `/ngo/onboarding` gets redirected away (and vice versa)
+- [ ] Webhook requests with an invalid/missing svix signature are rejected (401)
+
+
 ## Project structure
 
 See `architecture.md` for the full system diagram and module boundaries, and
