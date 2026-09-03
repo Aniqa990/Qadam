@@ -11,7 +11,7 @@ type HealthResponse = { status: string; service: string; timestamp: string };
  */
 export default function HomePage() {
   const { role, profile } = useAuth();
-  const api = useApi();
+  const { api } = useApi();
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   useEffect(() => {

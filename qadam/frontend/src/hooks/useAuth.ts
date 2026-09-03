@@ -13,7 +13,7 @@ import type { AuthMe } from "@/types/auth";
 export function useAuth() {
   const { isLoaded, isSignedIn } = useClerkAuth();
   const { user } = useUser();
-  const api = useApi();
+  const { api } = useApi();
 
   const [me, setMe] = useState<AuthMe | null>(null);
   const [isResolving, setIsResolving] = useState(true);

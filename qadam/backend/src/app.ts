@@ -5,6 +5,8 @@ import { errorMiddleware } from "./middleware/error.middleware";
 import { notFoundMiddleware } from "./middleware/not-found.middleware";
 import authRoutes from "./routes/auth.routes";
 import healthRoutes from "./routes/health.routes";
+import projectRoutes from "./routes/project.routes";
+import registrationRoutes from "./routes/registration.routes";
 
 /**
  * Express app configuration. Route modules for volunteer/ngo/etc. are
@@ -31,12 +33,12 @@ export function createApp(): Express {
 
   app.use("/api/health", healthRoutes);
   app.use("/api/auth", authRoutes);
+  app.use("/api/projects", projectRoutes);
+  app.use("/api/registrations", registrationRoutes);
 
   // Future route modules mount here, e.g.:
   // app.use("/api/volunteers", volunteerRoutes);
   // app.use("/api/ngos", ngoRoutes);
-  // app.use("/api/projects", projectRoutes);
-  // app.use("/api/registrations", registrationRoutes);
   // app.use("/api/matching", matchingRoutes);
   // app.use("/api/attendance", attendanceRoutes);
   // app.use("/api/ai", aiRoutes);
