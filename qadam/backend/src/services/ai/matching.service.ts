@@ -15,7 +15,7 @@ import {
  * Pipeline:
  *   1. Deterministic filtering (hard constraints — always run first)
  *   2. Multi-factor scoring (weighted composite: distance, skills,
- *      interests, pgvector embedding similarity)
+ *      pgvector embedding similarity)
  *   3. Ranking + explanation
  *
  * Embedding similarity uses real pgvector cosine similarity when both
@@ -26,10 +26,9 @@ import {
 // -- Scoring weights (centralised per AGENTS.md) --------------------------------
 
 export const MATCHING_WEIGHTS = {
-  distance: 0.35,
+  distance: 0.50,
   skills: 0.30,
   embedding: 0.20,
-  interests: 0.15,
 } as const;
 
 /** Maximum distance (km) for the deterministic location filter. */
@@ -41,16 +40,14 @@ const MATCHABLE_STATUSES: readonly ProjectStatus[] = ["published", "active"];
 // -- Types ---------------------------------------------------------------------
 
 export interface MatchReasons {
-  skills_match: string[];
-  skills_missing: string[];
-  interests_match: string[];
+  skills_match: { score: number; matched: string[]; missing: string[] };
   embedding_similarity: number;
   distance_km: number | null;
+  distance_score: number;
 }
 
 export interface ComponentScores {
   skills: number;
-  interests: number;
   embedding: number;
   distance: number | null;
 }
@@ -60,6 +57,15 @@ export interface MatchResult {
   volunteer_name: string;
   composite_score: number;
   component_scores: ComponentScores;
+  reasons: MatchReasons;
+}
+
+/** Single item in GET /api/matching/projects response (api-contracts.md). */
+export interface ProjectRecommendation {
+  project_id: string;
+  project_title: string;
+  ngo_name: string;
+  composite_score: number;
   reasons: MatchReasons;
 }
 
@@ -110,20 +116,6 @@ export function scoreSkills(
   requiredSkills: string[]
 ): number {
   return jaccardSimilarity(normalize(volunteerSkills), normalize(requiredSkills));
-}
-
-/**
- * Interests match score: Jaccard similarity of normalised volunteer interests
- * against project category (split by common separators for multi-word cats).
- */
-export function scoreInterests(
-  volunteerInterests: string[],
-  projectCategory: string
-): number {
-  const categoryTerms = normalize(
-    projectCategory.split(/[\s,/]+/).filter(Boolean)
-  );
-  return jaccardSimilarity(normalize(volunteerInterests), categoryTerms);
 }
 
 /**
@@ -191,7 +183,6 @@ export function passesDistanceFilter(
  */
 export function compositeScore(
   skills: number,
-  interests: number,
   embedding: number,
   distance: number | null
 ): { score: number; componentScores: ComponentScores } {
@@ -199,27 +190,19 @@ export function compositeScore(
 
   if (distance === null) {
     // Drop distance, renormalise the remaining weights proportionally.
-    const remaining = w.skills + w.interests + w.embedding;
+    const remaining = w.skills + w.embedding;
     const normSkills = w.skills / remaining;
-    const normInterests = w.interests / remaining;
     const normEmbedding = w.embedding / remaining;
 
     return {
-      score:
-        normSkills * skills +
-        normInterests * interests +
-        normEmbedding * embedding,
-      componentScores: { skills, interests, embedding, distance: null },
+      score: normSkills * skills + normEmbedding * embedding,
+      componentScores: { skills, embedding, distance: null },
     };
   }
 
   return {
-    score:
-      w.distance * distance +
-      w.skills * skills +
-      w.interests * interests +
-      w.embedding * embedding,
-    componentScores: { skills, interests, embedding, distance },
+    score: w.distance * distance + w.skills * skills + w.embedding * embedding,
+    componentScores: { skills, embedding, distance },
   };
 }
 
@@ -227,34 +210,29 @@ export function compositeScore(
 
 /**
  * Build human-readable reasons explaining why a volunteer matched.
+ * Accepts pre-computed component scores so the frontend can render
+ * score bars without recalculating them.
  */
 export function buildReasons(
   volunteerSkills: string[],
   requiredSkills: string[],
-  volunteerInterests: string[],
-  projectCategory: string,
   embeddingSimilarity: number,
-  distanceKm: number | null
+  distanceKm: number | null,
+  skillsScore: number,
+  distanceScore: number | null
 ): MatchReasons {
   const normRequired = normalize(requiredSkills);
   const normVolSkills = normalize(volunteerSkills);
   const normVolSkillsSet = new Set(normVolSkills);
 
-  const skillsMatch = normRequired.filter((s) => normVolSkillsSet.has(s));
-  const skillsMissing = normRequired.filter((s) => !normVolSkillsSet.has(s));
-
-  const categoryTerms = normalize(
-    projectCategory.split(/[\s,/]+/).filter(Boolean)
-  );
-  const normInterestsSet = new Set(normalize(volunteerInterests));
-  const interestsMatch = categoryTerms.filter((t) => normInterestsSet.has(t));
+  const matched = normRequired.filter((s) => normVolSkillsSet.has(s));
+  const missing = normRequired.filter((s) => !normVolSkillsSet.has(s));
 
   return {
-    skills_match: skillsMatch,
-    skills_missing: skillsMissing,
-    interests_match: interestsMatch,
+    skills_match: { score: skillsScore, matched, missing },
     embedding_similarity: embeddingSimilarity,
     distance_km: distanceKm,
+    distance_score: distanceScore ?? 0,
   };
 }
 
@@ -294,13 +272,11 @@ function scoreVolunteer(
       : null;
 
   const sSkills = scoreSkills(volunteer.skills, project.required_skills);
-  const sInterests = scoreInterests(volunteer.interests, project.category);
   const sEmbedding = embeddingMap.get(volunteer.id) ?? 0;
   const sDistance = scoreDistance(volunteerLoc, projectLoc);
 
   const { score, componentScores } = compositeScore(
     sSkills,
-    sInterests,
     sEmbedding,
     sDistance
   );
@@ -310,21 +286,17 @@ function scoreVolunteer(
     volunteer_name: volunteer.full_name,
     composite_score: round4(score),
     component_scores: {
-      ...componentScores,
       skills: round4(componentScores.skills),
-      interests: round4(componentScores.interests),
       embedding: round4(componentScores.embedding),
-      ...(componentScores.distance !== null
-        ? { distance: round4(componentScores.distance) }
-        : {}),
+      distance: componentScores.distance !== null ? round4(componentScores.distance) : null,
     },
     reasons: buildReasons(
       volunteer.skills,
       project.required_skills,
-      volunteer.interests,
-      project.category,
       sEmbedding,
-      distanceKm !== null ? round4(distanceKm) : null
+      distanceKm !== null ? round4(distanceKm) : null,
+      round4(sSkills),
+      sDistance !== null ? round4(sDistance) : null
     ),
   };
 }
@@ -353,6 +325,35 @@ async function fetchEmbeddingSimilarity(
     return new Map(rows.map((r) => [r.volunteer_id, r.similarity]));
   } catch {
     logger.warn("Embedding similarity lookup threw unexpectedly");
+    return new Map();
+  }
+}
+
+/**
+ * Load project embedding similarity scores via the `match_projects` RPC.
+ * Returns an empty map on any failure — recommendation still works with
+ * deterministic components (embedding score defaults to 0).
+ */
+async function fetchProjectEmbeddingSimilarity(
+  volunteerEmbedding: string,
+  matchCount: number
+): Promise<Map<string, number>> {
+  try {
+    const { data, error } = await supabase.rpc("match_projects", {
+      query_embedding: volunteerEmbedding,
+      match_count: matchCount,
+      match_threshold: 0.01,
+    });
+    if (error) {
+      logger.warn("Project embedding similarity lookup failed", {
+        error: error.message,
+      });
+      return new Map();
+    }
+    const rows = (data ?? []) as { project_id: string; similarity: number }[];
+    return new Map(rows.map((r) => [r.project_id, r.similarity]));
+  } catch {
+    logger.warn("Project embedding similarity lookup threw unexpectedly");
     return new Map();
   }
 }
@@ -486,6 +487,210 @@ export async function matchVolunteers(
   const results = candidates.map((v) =>
     scoreVolunteer(v, project, projectLoc, embeddingMap)
   );
+
+  // 8. Rank by composite_score descending, return top-N.
+  results.sort((a, b) => b.composite_score - a.composite_score);
+  return results.slice(0, limit);
+}
+
+// -- Volunteer-side project recommendations ------------------------------------
+
+/** Internal shape for a project loaded for recommendation scoring. */
+interface ProjectCandidate {
+  id: string;
+  ngo_id: string;
+  title: string;
+  category: string;
+  description: string;
+  required_skills: string[];
+  responsibilities: string[];
+  eligibility: ProjectEligibility | null;
+  capacity: number;
+  location_lat: number | null;
+  location_lng: number | null;
+}
+
+/**
+ * Score a single project for a given volunteer.
+ * Mirrors `scoreVolunteer` but produces a `ProjectRecommendation` instead.
+ */
+function scoreProject(
+  project: ProjectCandidate,
+  ngoName: string,
+  volunteer: {
+    skills: string[];
+    interests: string[];
+    location_lat: number | null;
+    location_lng: number | null;
+  },
+  volunteerLoc: { lat: number; lng: number } | null,
+  embeddingMap: Map<string, number>
+): ProjectRecommendation {
+  const projectLoc =
+    project.location_lat !== null && project.location_lng !== null
+      ? { lat: project.location_lat, lng: project.location_lng }
+      : null;
+
+  const distanceKm =
+    volunteerLoc && projectLoc
+      ? haversineDistanceKm(volunteerLoc, projectLoc)
+      : null;
+
+  const sSkills = scoreSkills(volunteer.skills, project.required_skills);
+  const sEmbedding = embeddingMap.get(project.id) ?? 0;
+  const sDistance = scoreDistance(volunteerLoc, projectLoc);
+
+  const { score } = compositeScore(sSkills, sEmbedding, sDistance);
+
+  return {
+    project_id: project.id,
+    project_title: project.title,
+    ngo_name: ngoName,
+    composite_score: round4(score),
+    reasons: buildReasons(
+      volunteer.skills,
+      project.required_skills,
+      sEmbedding,
+      distanceKm !== null ? round4(distanceKm) : null,
+      round4(sSkills),
+      sDistance !== null ? round4(sDistance) : null
+    ),
+  };
+}
+
+/**
+ * GET /api/matching/projects
+ *
+ * Returns ranked project recommendations for the authenticated volunteer.
+ * Uses the same three-step pipeline as matchVolunteers, but reversed:
+ * one volunteer scored against all published/active projects.
+ *
+ * Hard filters: project status, capacity, distance, eligibility.
+ * Scoring: distance 0.50 + skills 0.30 + embedding 0.20.
+ */
+export async function matchProjects(
+  identity: RequestIdentity,
+  limit = 5
+): Promise<ProjectRecommendation[]> {
+  if (identity.role !== "volunteer") {
+    throw new AuthorizationError("Only volunteer accounts can view project recommendations");
+  }
+
+  const volunteerId = identity.domainId;
+
+  // 1. Load the volunteer's profile.
+  const { data: volData, error: volError } = await supabase
+    .from("volunteers")
+    .select("skills, interests, location_lat, location_lng, age")
+    .eq("id", volunteerId)
+    .maybeSingle();
+  if (volError) {
+    throw new AppError(`Failed to load volunteer profile: ${volError.message}`, 500);
+  }
+  if (!volData) {
+    return [];
+  }
+
+  const volunteer = volData as {
+    skills: string[];
+    interests: string[];
+    location_lat: number | null;
+    location_lng: number | null;
+    age: number | null;
+  };
+
+  const volunteerLoc =
+    volunteer.location_lat !== null && volunteer.location_lng !== null
+      ? { lat: volunteer.location_lat, lng: volunteer.location_lng }
+      : null;
+
+  // 2. Load all published/active projects with their NGO name.
+  const { data: projectsData, error: projectsError } = await supabase
+    .from("projects")
+    .select(
+      "id, ngo_id, title, category, description, required_skills, responsibilities, eligibility, capacity, location_lat, location_lng, ngos(name)"
+    )
+    .in("status", MATCHABLE_STATUSES as unknown as string[]);
+  if (projectsError) {
+    throw new AppError(`Failed to load projects: ${projectsError.message}`, 500);
+  }
+  const allProjects = (projectsData ?? []) as unknown as (ProjectCandidate & {
+    ngos: { name: string } | null;
+  })[];
+  if (allProjects.length === 0) return [];
+
+  // 3. Exclude projects the volunteer is already registered for.
+  const { data: regData } = await supabase
+    .from("registrations")
+    .select("project_id")
+    .eq("volunteer_id", volunteerId);
+  const registeredProjectIds = new Set(
+    ((regData ?? []) as { project_id: string }[]).map((r) => r.project_id)
+  );
+
+  // 4. Count confirmed registrations per project for capacity filtering.
+  const projectIds = allProjects.map((p) => p.id).filter((id) => !registeredProjectIds.has(id));
+  const confirmedCounts = new Map<string, number>();
+  if (projectIds.length > 0) {
+    const { data: countsData } = await supabase
+      .from("registrations")
+      .select("project_id")
+      .eq("status", "confirmed")
+      .in("project_id", projectIds);
+    for (const row of ((countsData ?? []) as { project_id: string }[])) {
+      confirmedCounts.set(row.project_id, (confirmedCounts.get(row.project_id) ?? 0) + 1);
+    }
+  }
+
+  // 5. Deterministic filtering.
+  const candidates = allProjects.filter((p) => {
+    if (registeredProjectIds.has(p.id)) return false;
+    if (!passesCapacityFilter(p.capacity, confirmedCounts.get(p.id) ?? 0)) return false;
+    if (!passesEligibilityFilter(p.eligibility, volunteer.age)) return false;
+
+    const projLoc =
+      p.location_lat !== null && p.location_lng !== null
+        ? { lat: p.location_lat, lng: p.location_lng }
+        : null;
+    if (!passesDistanceFilter(volunteerLoc, projLoc)) return false;
+
+    return true;
+  });
+
+  if (candidates.length === 0) return [];
+
+  // 6. Best-effort embedding similarity via match_projects RPC.
+  let embeddingMap = new Map<string, number>();
+  try {
+    const { data: embData } = await supabase
+      .from("volunteer_embeddings")
+      .select("embedding")
+      .eq("volunteer_id", volunteerId)
+      .maybeSingle();
+    if (embData) {
+      const row = embData as unknown as { embedding: string };
+      if (row.embedding) {
+        embeddingMap = await fetchProjectEmbeddingSimilarity(
+          row.embedding,
+          candidates.length
+        );
+      }
+    }
+  } catch {
+    logger.warn("Volunteer embedding lookup failed, using 0 for embedding scores");
+  }
+
+  // 7. Score each candidate project.
+  const results = candidates.map((p) => {
+    const ngoName = p.ngos?.name ?? "";
+    return scoreProject(
+      { id: p.id, ngo_id: p.ngo_id, title: p.title, category: p.category, description: p.description, required_skills: p.required_skills, responsibilities: p.responsibilities, eligibility: p.eligibility, capacity: p.capacity, location_lat: p.location_lat, location_lng: p.location_lng },
+      ngoName,
+      volunteer,
+      volunteerLoc,
+      embeddingMap
+    );
+  });
 
   // 8. Rank by composite_score descending, return top-N.
   results.sort((a, b) => b.composite_score - a.composite_score);

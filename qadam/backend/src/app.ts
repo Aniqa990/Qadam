@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes";
 import aiRoutes from "./routes/ai.routes";
 import healthRoutes from "./routes/health.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
+import matchingRoutes from "./routes/matching.routes";
 import ngoRoutes from "./routes/ngo.routes";
 import projectRoutes from "./routes/project.routes";
 import registrationRoutes from "./routes/registration.routes";
@@ -44,9 +45,8 @@ export function createApp(): Express {
   app.use("/api/ngos", ngoRoutes);
   app.use("/api/attendance", attendanceRoutes);
   app.use("/api/knowledge", knowledgeRoutes);
+  app.use("/api/matching", matchingRoutes);
 
-  // Future route modules mount here, e.g.:
-  // app.use("/api/matching", matchingRoutes);
   app.use("/api/ai", aiRoutes);
   // app.use("/api/impact", impactRoutes);
 

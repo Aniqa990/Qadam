@@ -3,7 +3,7 @@
  * Module"). Keep in sync with the backend matching service.
  *
  * Scoring weights (AGENTS.md "Composite scoring weights"):
- *   distance 0.35 + skills 0.30 + embedding 0.20 + interests 0.15.
+ *   distance 0.50 + skills 0.30 + embedding 0.20.
  * Distance is excluded (weights redistributed proportionally) when either
  * party has no coordinates.
  */
@@ -14,18 +14,12 @@ export interface SkillsMatch {
   missing: string[];
 }
 
-export interface InterestsMatch {
-  score: number;
-  matched: string[];
-}
-
 export interface MatchReasons {
   /** Actual distance in kilometres; null when either side has no coordinates. */
   distance_km: number | null;
   /** Weighted distance factor (1 / (1 + km)); 0 when distance is unavailable. */
   distance_score: number;
   skills_match: SkillsMatch;
-  interests_match: InterestsMatch;
   embedding_similarity: number;
 }
 

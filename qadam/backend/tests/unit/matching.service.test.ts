@@ -79,7 +79,6 @@ import {
   passesEligibilityFilter,
   passesStatusFilter,
   scoreDistance,
-  scoreInterests,
   scoreSkills,
 } from "../../src/services/ai/matching.service";
 import { AuthorizationError, NotFoundError } from "../../src/utils/errors";
@@ -146,39 +145,6 @@ describe("scoreSkills", () => {
   it("handles duplicate skills gracefully", () => {
     // After normalisation: volunteer = {teaching}, project = {teaching}
     expect(scoreSkills(["teaching", "teaching"], ["teaching"])).toBe(1);
-  });
-});
-
-describe("scoreInterests", () => {
-  it("returns 0.5 when one interest matches and one doesn't (Jaccard)", () => {
-    // intersection = {education} = 1, union = {education, health} = 2 → 1/2
-    expect(scoreInterests(["education", "health"], "Education")).toBe(0.5);
-  });
-
-  it("returns 0 for no overlap", () => {
-    expect(scoreInterests(["sports", "health"], "Education")).toBe(0);
-  });
-
-  it("is case-insensitive", () => {
-    expect(scoreInterests(["EDUCATION"], "education")).toBe(1);
-  });
-
-  it("handles multi-word category by splitting on spaces/commas", () => {
-    // Category "environment cleanup" → terms: {environment, cleanup}
-    // Interests: {environment, education} → intersection=1, union=3
-    const result = scoreInterests(
-      ["environment", "education"],
-      "environment cleanup"
-    );
-    expect(result).toBeCloseTo(1 / 3, 5);
-  });
-
-  it("returns 0 when interests are empty and category is non-empty", () => {
-    expect(scoreInterests([], "Education")).toBe(0);
-  });
-
-  it("returns 0 when both are empty", () => {
-    expect(scoreInterests([], "")).toBe(0);
   });
 });
 
@@ -309,55 +275,50 @@ describe("passesDistanceFilter", () => {
 describe("compositeScore", () => {
   it("computes the weighted sum when all components are present", () => {
     const skills = 0.5;
-    const interests = 0.8;
     const embedding = 0.6;
     const distance = 0.9;
 
     const expected =
       MATCHING_WEIGHTS.distance * distance +
       MATCHING_WEIGHTS.skills * skills +
-      MATCHING_WEIGHTS.interests * interests +
       MATCHING_WEIGHTS.embedding * embedding;
 
-    const { score } = compositeScore(skills, interests, embedding, distance);
+    const { score } = compositeScore(skills, embedding, distance);
     expect(score).toBeCloseTo(expected, 10);
   });
 
   it("renormalises weights when distance is null", () => {
     const skills = 0.5;
-    const interests = 0.8;
     const embedding = 0.6;
 
-    const remaining = MATCHING_WEIGHTS.skills + MATCHING_WEIGHTS.interests + MATCHING_WEIGHTS.embedding;
+    const remaining = MATCHING_WEIGHTS.skills + MATCHING_WEIGHTS.embedding;
     const expected =
       (MATCHING_WEIGHTS.skills / remaining) * skills +
-      (MATCHING_WEIGHTS.interests / remaining) * interests +
       (MATCHING_WEIGHTS.embedding / remaining) * embedding;
 
-    const { score, componentScores } = compositeScore(skills, interests, embedding, null);
+    const { score, componentScores } = compositeScore(skills, embedding, null);
     expect(score).toBeCloseTo(expected, 10);
     expect(componentScores.distance).toBeNull();
   });
 
   it("returns 0 when all components are 0", () => {
-    const { score } = compositeScore(0, 0, 0, 0);
+    const { score } = compositeScore(0, 0, 0);
     expect(score).toBe(0);
   });
 
   it("returns 1 when all components are 1 (with distance)", () => {
-    const { score } = compositeScore(1, 1, 1, 1);
+    const { score } = compositeScore(1, 1, 1);
     expect(score).toBeCloseTo(1, 10);
   });
 
   it("returns 1 when all components are 1 (without distance)", () => {
-    const { score } = compositeScore(1, 1, 1, null);
+    const { score } = compositeScore(1, 1, null);
     expect(score).toBeCloseTo(1, 10);
   });
 
   it("componentScores reflect raw input values", () => {
-    const { componentScores } = compositeScore(0.3, 0.7, 0.5, 0.8);
+    const { componentScores } = compositeScore(0.3, 0.5, 0.8);
     expect(componentScores.skills).toBe(0.3);
-    expect(componentScores.interests).toBe(0.7);
     expect(componentScores.embedding).toBe(0.5);
     expect(componentScores.distance).toBe(0.8);
   });
@@ -372,59 +333,48 @@ describe("buildReasons", () => {
     const reasons = buildReasons(
       ["teaching", "coding"],
       ["teaching", "mentoring"],
-      ["education"],
-      "education",
       0.5,
-      10
+      10,
+      0.3333,
+      0.0909
     );
-    expect(reasons.skills_match).toEqual(["teaching"]);
-    expect(reasons.skills_missing).toEqual(["mentoring"]);
+    expect(reasons.skills_match.matched).toEqual(["teaching"]);
+    expect(reasons.skills_match.missing).toEqual(["mentoring"]);
   });
 
   it("is case-insensitive for skill matching", () => {
     const reasons = buildReasons(
       ["Teaching", "MENTORING"],
       ["teaching", "mentoring"],
-      [],
-      "",
       0,
+      null,
+      1,
       null
     );
-    expect(reasons.skills_match).toEqual(["teaching", "mentoring"]);
-    expect(reasons.skills_missing).toEqual([]);
-  });
-
-  it("correctly identifies matching interests against category", () => {
-    const reasons = buildReasons(
-      [],
-      [],
-      ["education", "health"],
-      "Education",
-      0,
-      null
-    );
-    expect(reasons.interests_match).toEqual(["education"]);
+    expect(reasons.skills_match.matched).toEqual(["teaching", "mentoring"]);
+    expect(reasons.skills_match.missing).toEqual([]);
   });
 
   it("passes through embedding similarity and distance", () => {
-    const reasons = buildReasons([], [], [], "", 0.75, 42.5);
+    const reasons = buildReasons([], [], 0.75, 42.5, 0, 0.023);
     expect(reasons.embedding_similarity).toBe(0.75);
     expect(reasons.distance_km).toBe(42.5);
+    expect(reasons.distance_score).toBe(0.023);
   });
 
   it("returns empty arrays when nothing matches", () => {
     const reasons = buildReasons(
       ["coding"],
       ["teaching"],
-      ["sports"],
-      "education",
+      0,
+      null,
       0,
       null
     );
-    expect(reasons.skills_match).toEqual([]);
-    expect(reasons.skills_missing).toEqual(["teaching"]);
-    expect(reasons.interests_match).toEqual([]);
+    expect(reasons.skills_match.matched).toEqual([]);
+    expect(reasons.skills_match.missing).toEqual(["teaching"]);
     expect(reasons.distance_km).toBeNull();
+    expect(reasons.distance_score).toBe(0);
   });
 });
 
@@ -603,7 +553,7 @@ describe("matchVolunteers", () => {
     const result = await matchVolunteers(ngoIdentity(), "proj-1");
     expect(result).toHaveLength(3);
 
-    // vol-3 (high skills+interests despite distance) > vol-1 (close, some overlap) > vol-2 (close, no overlap)
+    // vol-3 (high skills despite distance) > vol-1 (close, some overlap) > vol-2 (close, no overlap)
     expect(result[0].volunteer_id).toBe("vol-3");
     expect(result[1].volunteer_id).toBe("vol-1");
     expect(result[2].volunteer_id).toBe("vol-2");
@@ -640,16 +590,14 @@ describe("matchVolunteers", () => {
 
     const match = result[0];
     expect(match.component_scores.skills).toBe(1);
-    expect(match.component_scores.interests).toBe(1);
     expect(match.component_scores.embedding).toBe(0); // stubbed
     expect(match.component_scores.distance).not.toBeNull();
     expect(match.component_scores.distance).toBeGreaterThan(0);
 
-    // Verify composite = 0.35*distance + 0.30*1 + 0.15*1 + 0.20*0
+    // Verify composite = 0.50*distance + 0.30*1 + 0.20*0
     const expectedScore =
       MATCHING_WEIGHTS.distance * (match.component_scores.distance as number) +
       MATCHING_WEIGHTS.skills * 1 +
-      MATCHING_WEIGHTS.interests * 1 +
       MATCHING_WEIGHTS.embedding * 0;
     expect(match.composite_score).toBeCloseTo(expectedScore, 3);
   });
@@ -672,13 +620,12 @@ describe("matchVolunteers", () => {
     const match = result[0];
     expect(match.component_scores.distance).toBeNull();
 
-    // Without distance: remaining = 0.30 + 0.15 + 0.20 = 0.65
-    // normSkills = 0.30/0.65, normInterests = 0.15/0.65, normEmbedding = 0.20/0.65
-    // skills=1, interests=1, embedding=0
-    const remaining = MATCHING_WEIGHTS.skills + MATCHING_WEIGHTS.interests + MATCHING_WEIGHTS.embedding;
+    // Without distance: remaining = 0.30 + 0.20 = 0.50
+    // normSkills = 0.30/0.50, normEmbedding = 0.20/0.50
+    // skills=1, embedding=0
+    const remaining = MATCHING_WEIGHTS.skills + MATCHING_WEIGHTS.embedding;
     const expected =
       (MATCHING_WEIGHTS.skills / remaining) * 1 +
-      (MATCHING_WEIGHTS.interests / remaining) * 1 +
       (MATCHING_WEIGHTS.embedding / remaining) * 0;
     expect(match.composite_score).toBeCloseTo(expected, 3);
   });
@@ -703,9 +650,8 @@ describe("matchVolunteers", () => {
     expect(result).toHaveLength(1);
 
     const reasons = result[0].reasons;
-    expect(reasons.skills_match).toContain("teaching");
-    expect(reasons.skills_missing).toContain("mentoring");
-    expect(reasons.interests_match).toContain("education");
+    expect(reasons.skills_match.matched).toContain("teaching");
+    expect(reasons.skills_match.missing).toContain("mentoring");
     expect(reasons.embedding_similarity).toBe(0);
     expect(reasons.distance_km).not.toBeNull();
     expect(reasons.distance_km).toBeGreaterThan(0);

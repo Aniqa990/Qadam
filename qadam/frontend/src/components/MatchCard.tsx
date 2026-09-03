@@ -1,4 +1,4 @@
-import { MapPin, Sparkles, Target, Heart, TrendingUp } from "lucide-react";
+import { MapPin, Sparkles, Target, TrendingUp } from "lucide-react";
 import type { MatchReasons, VolunteerMatch } from "@/types/matching";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,6 @@ export function ScoreBreakdown({ reasons }: { reasons: MatchReasons }) {
     distance_km,
     distance_score,
     skills_match,
-    interests_match,
     embedding_similarity,
   } = reasons;
 
@@ -67,7 +66,7 @@ export function ScoreBreakdown({ reasons }: { reasons: MatchReasons }) {
       {/* Distance */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <FactorLabel icon={MapPin} label="Distance" weight="35%" />
+          <FactorLabel icon={MapPin} label="Distance" weight="50%" />
           <span className="text-xs font-medium tabular-nums">
             {distance_km != null
               ? `${distance_km.toFixed(1)} km`
@@ -111,35 +110,12 @@ export function ScoreBreakdown({ reasons }: { reasons: MatchReasons }) {
       {/* Embedding */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <FactorLabel icon={Sparkles} label="Embedding" weight="20%" />
+          <FactorLabel icon={Sparkles} label="Semantic" weight="20%" />
           <span className="text-xs font-medium tabular-nums">
             {Math.round(embedding_similarity * 100)}%
           </span>
         </div>
         <ScoreBar score={embedding_similarity} />
-      </div>
-
-      {/* Interests */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <FactorLabel icon={Heart} label="Interests" weight="15%" />
-          <span className="text-xs font-medium tabular-nums">
-            {Math.round(interests_match.score * 100)}%
-          </span>
-        </div>
-        <ScoreBar score={interests_match.score} />
-        {interests_match.matched.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-0.5">
-            {interests_match.matched.map((i) => (
-              <span
-                key={i}
-                className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
-              >
-                {i}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -225,11 +201,6 @@ function buildReasonSummary(reasons: MatchReasons, name: string): string {
   if (reasons.skills_match.matched.length > 0) {
     const skills = reasons.skills_match.matched.slice(0, 3).join(", ");
     parts.push(`matches on ${skills}`);
-  }
-
-  if (reasons.interests_match.matched.length > 0) {
-    const interests = reasons.interests_match.matched.slice(0, 2).join(", ");
-    parts.push(`interested in ${interests}`);
   }
 
   if (reasons.distance_km != null && reasons.distance_km < 20) {
