@@ -1,133 +1,87 @@
-import { aiConfig } from "../../config/ai";
+﻿import { aiConfig } from "../../config/ai";
+import { httpJson } from "../../lib/http";
 import { AIProviderError } from "../../utils/errors";
+import { logger } from "../../utils/logger";
 
 /**
- * Qwen (Alibaba Cloud DashScope) text-generation wrapper
- * (ai-architecture.md "qwen.service.ts").
+ * Wraps Alibaba Cloud DashScope's OpenAI-compatible Qwen API as the fallback
+ * LLM provider (ai-architecture.md "qwen.service.ts"). Implements the same
+ * internal generateText interface as gemini.service.ts so llm.service.ts can
+ * call either transparently.
  *
- * Uses the OpenAI-compatible DashScope endpoint as the automatic fallback
- * when Gemini errors, times out, or is rate-limited. Same internal
- * interface as gemini.service.ts so llm.service.ts can swap providers
- * transparently.
- *
- * Interface:
- *   generateText({ prompt, systemInstruction?, temperature?, maxTokens? }) → string
+ * DashScope OpenAI-compatible endpoint:
+ *   POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+ *   Authorization: Bearer <DASHSCOPE_API_KEY>
  */
 
-const QWEN_TIMEOUT_MS = 30_000;
-
-// -- Types ---------------------------------------------------------------------
-
-export interface GenerateTextParams {
+interface GenerateTextParams {
   prompt: string;
   systemInstruction?: string;
   temperature?: number;
   maxTokens?: number;
 }
 
-// -- Public API ----------------------------------------------------------------
+interface DashScopeResponse {
+  choices?: Array<{
+    message?: { content?: string };
+  }>;
+}
 
-/**
- * Generate text using the Qwen DashScope API. Throws AIProviderError on
- * timeout, rate limit, malformed response, empty response, or network error.
- */
+const DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const QWEN_TIMEOUT_MS = 30_000;
+
 export async function generateText(params: GenerateTextParams): Promise<string> {
-  if (!params.prompt.trim()) {
-    throw new AIProviderError(
-      "EMPTY_RESPONSE",
-      "qwen",
-      "Cannot generate text from an empty prompt"
-    );
+  const { prompt, systemInstruction, temperature = 0.7, maxTokens = 2048 } = params;
+  const { apiKey, model } = aiConfig.qwen;
+
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemInstruction) {
+    messages.push({ role: "system", content: systemInstruction });
   }
+  messages.push({ role: "user", content: prompt });
 
-  const url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
-
-  const messages: { role: string; content: string }[] = [];
-  if (params.systemInstruction) {
-    messages.push({ role: "system", content: params.systemInstruction });
-  }
-  messages.push({ role: "user", content: params.prompt });
-
-  const body: Record<string, unknown> = {
-    model: aiConfig.qwen.model,
+  const body = JSON.stringify({
+    model,
     messages,
-  };
-  if (params.temperature != null) body.temperature = params.temperature;
-  if (params.maxTokens != null) body.max_tokens = params.maxTokens;
+    temperature,
+    max_tokens: maxTokens,
+  });
 
-  let response: Response;
+  let res: DashScopeResponse;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), QWEN_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${aiConfig.qwen.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
+    res = await httpJson<DashScopeResponse>(DASHSCOPE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+      timeoutMs: QWEN_TIMEOUT_MS,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("aborted") || message.toLowerCase().includes("abort")) {
+      throw new AIProviderError("TIMEOUT", "qwen", `Qwen request timed out after ${QWEN_TIMEOUT_MS}ms`);
     }
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new AIProviderError("TIMEOUT", "qwen", "Qwen request timed out");
+    if (message.includes("HTTP 429")) {
+      throw new AIProviderError("RATE_LIMITED", "qwen", message);
     }
-    throw new AIProviderError(
-      "NETWORK_ERROR",
-      "qwen",
-      err instanceof Error ? err.message : "Unknown network error"
-    );
+    logger.warn("Qwen network/HTTP error", { message });
+    throw new AIProviderError("NETWORK_ERROR", "qwen", message);
   }
 
-  if (response.status === 429) {
-    throw new AIProviderError("RATE_LIMITED", "qwen", "Qwen rate limit exceeded");
-  }
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
+  const text = res?.choices?.[0]?.message?.content;
+  if (typeof text !== "string") {
     throw new AIProviderError(
       "MALFORMED_RESPONSE",
       "qwen",
-      `Qwen returned ${response.status}: ${errorText.slice(0, 300)}`
+      "Qwen response missing choices[0].message.content"
     );
   }
 
-  let result: unknown;
-  try {
-    result = await response.json();
-  } catch {
-    throw new AIProviderError(
-      "MALFORMED_RESPONSE",
-      "qwen",
-      "Failed to parse Qwen JSON response"
-    );
-  }
-
-  const text = extractQwenText(result);
-  if (!text) {
-    throw new AIProviderError(
-      "EMPTY_RESPONSE",
-      "qwen",
-      "Qwen returned an empty response"
-    );
+  if (text.trim().length === 0) {
+    throw new AIProviderError("EMPTY_RESPONSE", "qwen", "Qwen returned an empty string");
   }
 
   return text;
-}
-
-// -- Helpers -------------------------------------------------------------------
-
-function extractQwenText(result: unknown): string | null {
-  try {
-    const obj = result as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = obj?.choices?.[0]?.message?.content;
-    return typeof text === "string" && text.trim() ? text.trim() : null;
-  } catch {
-    return null;
-  }
 }

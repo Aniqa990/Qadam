@@ -16,3 +16,13 @@ export const assistantChatSchema = z.object({
 });
 
 export type AssistantChatBody = z.infer<typeof assistantChatSchema>;
+
+export const copilotDraftBodySchema = z.object({
+  brief: z
+    .string()
+    .trim()
+    .min(1, "brief is required")
+    .max(2000, "brief must be at most 2000 characters"),
+});
+
+export type CopilotDraftBody = z.infer<typeof copilotDraftBodySchema>;

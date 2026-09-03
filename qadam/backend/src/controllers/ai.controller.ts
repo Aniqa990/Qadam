@@ -2,6 +2,24 @@ import type { NextFunction, Request, Response } from "express";
 import * as ragService from "../services/ai/rag.service";
 import { AuthenticationError } from "../utils/errors";
 import { sendSuccess } from "../utils/response";
+import { generateDraft } from "../services/ai/copilot.service";
+
+/**
+ * Thin controller for AI endpoints (architecture.md "Controllers must remain
+ * thin"). Reads validated request data, calls the copilot service, and
+ * returns the HTTP response. No business logic here - that lives in
+ * services/ai/copilot.service.ts.
+ */
+
+export async function copilotDraft(req: Request, res: Response, next: NextFunction) {
+  try {
+    // req.body has been validated by validate(copilotDraftBodySchema) in the
+    // route; the { brief } shape is guaranteed here.
+    const { brief } = req.body as { brief: string };
+    const draft = await generateDraft(brief);
+    return sendSuccess(res, draft);
+  } catch (err) {
+    return next(err);
 
 /**
  * POST /api/ai/assistant/chat — thin controller for the Global Knowledge

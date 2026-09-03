@@ -12,6 +12,7 @@ import projectRoutes from "./routes/project.routes";
 import registrationRoutes from "./routes/registration.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import volunteerRoutes from "./routes/volunteer.routes";
+import aiRoutes from "./routes/ai.routes";
 
 /**
  * Express app configuration. Route modules for volunteer/ngo/etc. are
