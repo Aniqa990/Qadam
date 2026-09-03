@@ -146,6 +146,12 @@ export default function EditProjectPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {project.registered_count} / {project.capacity} volunteers registered
             </p>
+            <Link
+              to={`/ngo/projects/${project.id}/attendance`}
+              className="mt-1 inline-block text-sm font-medium text-primary hover:underline"
+            >
+              Attendance & QR check-in →
+            </Link>
           </div>
           <ProjectStatusBadge status={project.status} />
         </div>
