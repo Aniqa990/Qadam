@@ -6,9 +6,13 @@ import AttendanceManagementPage from "./pages/ngo/AttendanceManagementPage";
 import CreateProjectPage from "./pages/ngo/CreateProjectPage";
 import EditProjectPage from "./pages/ngo/EditProjectPage";
 import NgoDashboardPage from "./pages/ngo/NgoDashboardPage";
+import NgoImpactPage from "./pages/ngo/NgoImpactPage";
+import NgoKnowledgePage from "./pages/ngo/NgoKnowledgePage";
+import MatchingPage from "./pages/ngo/MatchingPage";
 import NgoOnboardingPage from "./pages/ngo/NgoOnboardingPage";
 import NgoProfilePage from "./pages/ngo/NgoProfilePage";
 import NgoProjectsPage from "./pages/ngo/NgoProjectsPage";
+import VolunteerImpactPage from "./pages/volunteer/VolunteerImpactPage";
 import HomePage from "./pages/shared/HomePage";
 import NotFoundPage from "./pages/shared/NotFoundPage";
 import ProjectDetailPage from "./pages/shared/ProjectDetailPage";
@@ -33,14 +37,14 @@ import VolunteerGuard from "./routes/VolunteerGuard";
 export default function App() {
   return (
     <Routes>
-      {/* Public routes */}
+      {/* Public routes — no ProtectedLayout, no auth required */}
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
       {/* Protected layout with app shell */}
       <Route element={<ProtectedLayout />}>
         {/* Shared routes */}
-        <Route path="/" element={<HomePage />} />
         <Route path="/projects" element={<BrowseProjectsPage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
@@ -55,6 +59,7 @@ export default function App() {
         <Route element={<VolunteerGuard />}>
           <Route path="/volunteer/projects" element={<VolunteerProjectsPage />} />
           <Route path="/volunteer/registrations" element={<VolunteerRegistrationsPage />} />
+          <Route path="/volunteer/impact" element={<VolunteerImpactPage />} />
           <Route path="/volunteer/scan" element={<QrScannerPage />} />
           <Route path="/volunteer/profile" element={<VolunteerProfilePage />} />
         </Route>
@@ -66,6 +71,9 @@ export default function App() {
           <Route path="/ngo/projects/new" element={<CreateProjectPage />} />
           <Route path="/ngo/projects/:id/edit" element={<EditProjectPage />} />
           <Route path="/ngo/projects/:id/attendance" element={<AttendanceManagementPage />} />
+          <Route path="/ngo/matching/:projectId" element={<MatchingPage />} />
+          <Route path="/ngo/knowledge" element={<NgoKnowledgePage />} />
+          <Route path="/ngo/impact" element={<NgoImpactPage />} />
           <Route path="/ngo/profile" element={<NgoProfilePage />} />
         </Route>
       </Route>

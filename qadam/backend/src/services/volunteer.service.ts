@@ -3,6 +3,8 @@ import type { VolunteerProfile, VolunteerRow } from "../types/profile.types";
 import type { CreateVolunteerProfileBody, UpdateVolunteerProfileBody } from "../validators/volunteer.validator";
 import { supabase } from "../lib/supabase";
 import { reverseGeocode } from "./geocoding.service";
+import { regenerateVolunteerEmbedding } from "./ai/embedding.service";
+import { logger } from "../utils/logger";
 import { AppError, AuthorizationError, NotFoundError } from "../utils/errors";
 
 /**
@@ -14,6 +16,16 @@ import { AppError, AuthorizationError, NotFoundError } from "../utils/errors";
  * and never un-sets (clearing fields later can't lock a volunteer out of the
  * app they already onboarded into).
  */
+
+/** Fire-and-forget: an embedding failure must never fail a core write. */
+function triggerVolunteerEmbedding(volunteerId: string): void {
+  regenerateVolunteerEmbedding(volunteerId).catch((err) => {
+    logger.error("Volunteer embedding regeneration failed", {
+      volunteerId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
 
 type VolunteerProfileInput = CreateVolunteerProfileBody | UpdateVolunteerProfileBody;
 
@@ -100,6 +112,16 @@ export async function updateProfile(
   const { error } = await supabase.from("volunteers").update(update).eq("id", identity.domainId);
   if (error) {
     throw new AppError(`Failed to update volunteer profile: ${error.message}`, 500);
+  }
+
+  // Embedding input is skills + interests + experience (database-schema.md
+  // "volunteer_embeddings") — regenerate whenever any of them changed.
+  const embeddingContentChanged =
+    (input.skills !== undefined && JSON.stringify(input.skills) !== JSON.stringify(row.skills ?? [])) ||
+    (input.interests !== undefined && JSON.stringify(input.interests) !== JSON.stringify(row.interests ?? [])) ||
+    (input.experience !== undefined && input.experience !== row.experience);
+  if (embeddingContentChanged) {
+    triggerVolunteerEmbedding(row.id);
   }
 
   return { id: row.id, onboarding_complete: complete };

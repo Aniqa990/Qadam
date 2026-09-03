@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import RegistrationCard from "@/components/RegistrationCard";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import VolunteerNav from "@/components/VolunteerNav";
 import { useApi } from "@/hooks/useApi";
 import { cancelRegistration, listRegistrations } from "@/lib/registrations";
 import type { RegistrationSummary } from "@/types/registration";
@@ -54,7 +53,6 @@ export default function VolunteerRegistrationsPage() {
 
   return (
     <>
-      <VolunteerNav />
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
         <div>
           <h1 className="text-2xl font-bold">My registrations</h1>

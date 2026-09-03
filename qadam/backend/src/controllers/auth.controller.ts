@@ -41,3 +41,17 @@ export async function handleClerkWebhook(req: Request, res: Response, next: Next
     next(err);
   }
 }
+
+/**
+ * POST /api/auth/logout - client-side logout hook. Clerk session
+ * invalidation happens in the browser (signOut()), so this endpoint is
+ * intentionally thin: it just acknowledges the request so the frontend
+ * has a consistent API round-trip for logging out.
+ */
+export async function logout(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, { message: "Logged out" });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import NgoNav from "@/components/NgoNav";
 import ProjectForm from "@/components/ProjectForm";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -109,7 +108,6 @@ export default function EditProjectPage() {
   if (loading) {
     return (
       <>
-        <NgoNav />
         <main className="mx-auto max-w-3xl px-4 py-8">
           <LoadingState label="Loading project..." />
         </main>
@@ -120,7 +118,6 @@ export default function EditProjectPage() {
   if (error || !project) {
     return (
       <>
-        <NgoNav />
         <main className="mx-auto max-w-3xl space-y-4 px-4 py-8">
           <ErrorState message={error ?? "Project not found"} onRetry={load} />
           <div className="text-center">
@@ -138,7 +135,6 @@ export default function EditProjectPage() {
 
   return (
     <>
-      <NgoNav />
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

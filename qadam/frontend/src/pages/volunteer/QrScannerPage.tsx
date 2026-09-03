@@ -5,7 +5,6 @@ import { checkIn, checkOut, listAttendanceRecords } from "@/lib/attendance";
 import type { AttendanceRecord, CheckInResult, CheckOutResult } from "@/types/attendance";
 import { parseAttendancePayload } from "@/types/attendance";
 import { formatDate, formatDateTime, formatHours } from "@/lib/utils";
-import VolunteerNav from "@/components/VolunteerNav";
 import QrScanner from "@/components/QrScanner";
 
 type ScanOutcome =
@@ -88,7 +87,6 @@ export default function QrScannerPage() {
 
   return (
     <>
-      <VolunteerNav />
       <main className="mx-auto max-w-2xl space-y-8 px-4 py-10">
         <header>
           <h1 className="text-2xl font-bold">Scan attendance QR</h1>

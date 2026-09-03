@@ -17,4 +17,11 @@ router.post("/webhook", authController.handleClerkWebhook);
  */
 router.get("/me", authMiddleware, resolveUserMiddleware, authController.getMe);
 
+/**
+ * POST /api/auth/logout - behind auth so only logged-in users can call it.
+ * The actual Clerk session teardown happens client-side; this just
+ * provides a consistent API round-trip for the frontend.
+ */
+router.post("/logout", authMiddleware, authController.logout);
+
 export default router;

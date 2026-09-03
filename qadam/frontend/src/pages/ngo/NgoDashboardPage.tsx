@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
-import NgoNav from "@/components/NgoNav";
+import { Plus, Users } from "lucide-react";
 import ProjectCard from "@/components/ProjectCard";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
@@ -40,7 +39,6 @@ export default function NgoDashboardPage() {
 
   return (
     <>
-      <NgoNav />
       <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -99,7 +97,18 @@ export default function NgoDashboardPage() {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {projects.slice(0, 4).map((project) => (
-                    <ProjectCard key={project.id} project={project} />
+                    <div key={project.id} className="space-y-2">
+                      <ProjectCard project={project} />
+                      {(project.status === "published" || project.status === "active") && (
+                        <Link
+                          to={`/ngo/matching/${project.id}`}
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Find Matches
+                        </Link>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
