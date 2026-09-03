@@ -150,8 +150,9 @@ describe("scoreSkills", () => {
 });
 
 describe("scoreInterests", () => {
-  it("returns 1 when interests contain the category", () => {
-    expect(scoreInterests(["education", "health"], "Education")).toBe(1);
+  it("returns 0.5 when one interest matches and one doesn't (Jaccard)", () => {
+    // intersection = {education} = 1, union = {education, health} = 2 → 1/2
+    expect(scoreInterests(["education", "health"], "Education")).toBe(0.5);
   });
 
   it("returns 0 for no overlap", () => {
@@ -564,37 +565,37 @@ describe("matchVolunteers", () => {
 
   it("ranks candidates correctly with fixed fixtures", async () => {
     // Project in Karachi (24.86, 67.00) requiring ["teaching", "mentoring"]
-    // category: "education"
+    // category: "education". All volunteers must be within 100 km.
     const project = projectRow();
 
-    // Volunteer 1: nearby (~50 km), 1/3 skill overlap, 1/2 interest overlap
+    // Volunteer 1: very close (~5 km), 1/3 skill overlap, 1/3 interest overlap
     const vol1 = volunteerRow({
       id: "vol-1",
       full_name: "Nearby Partial",
       skills: ["teaching", "coding"],
-      interests: ["education", "technology"],
-      location_lat: 25.2,
-      location_lng: 67.3,
+      interests: ["education", "technology", "sports"],
+      location_lat: 24.9,
+      location_lng: 67.02,
     });
 
-    // Volunteer 2: very close (~5 km), 0 skill overlap, 0 interest overlap
+    // Volunteer 2: close (~52 km), 0 skill overlap, 0 interest overlap
     const vol2 = volunteerRow({
       id: "vol-2",
       full_name: "Close NoMatch",
       skills: ["cooking", "painting"],
       interests: ["sports", "music"],
-      location_lat: 24.9,
-      location_lng: 67.02,
+      location_lat: 25.0,
+      location_lng: 67.5,
     });
 
-    // Volunteer 3: far (~500 km), perfect skill match, 1/1 interest overlap
+    // Volunteer 3: far (~89 km, still within 100 km), perfect skill + interest match
     const vol3 = volunteerRow({
       id: "vol-3",
       full_name: "Far Expert",
       skills: ["teaching", "mentoring"],
       interests: ["education"],
-      location_lat: 28.0,
-      location_lng: 70.0,
+      location_lat: 25.4,
+      location_lng: 67.6,
     });
 
     queueHappyPath(project, [vol1, vol2, vol3]);
@@ -602,13 +603,12 @@ describe("matchVolunteers", () => {
     const result = await matchVolunteers(ngoIdentity(), "proj-1");
     expect(result).toHaveLength(3);
 
-    // Expected order: vol3 (high skills+interests) > vol1 (decent distance+some overlap) > vol2 (only distance)
-    const ids = result.map((r) => r.volunteer_id);
-    expect(ids[0]).toBe("vol-3");
-    expect(ids[1]).toBe("vol-1");
-    expect(ids[2]).toBe("vol-2");
+    // vol-3 (high skills+interests despite distance) > vol-1 (close, some overlap) > vol-2 (close, no overlap)
+    expect(result[0].volunteer_id).toBe("vol-3");
+    expect(result[1].volunteer_id).toBe("vol-1");
+    expect(result[2].volunteer_id).toBe("vol-2");
 
-    // Verify all scores are positive and descending
+    // Verify all scores are positive and strictly descending
     for (let i = 0; i < result.length - 1; i++) {
       expect(result[i].composite_score).toBeGreaterThan(result[i + 1].composite_score);
     }
@@ -689,9 +689,12 @@ describe("matchVolunteers", () => {
       category: "education",
     });
 
+    // Offset volunteer from project so distance > 0
     const vol = volunteerRow({
       skills: ["teaching", "coding"],
       interests: ["education", "technology"],
+      location_lat: 25.2,
+      location_lng: 67.3,
     });
 
     queueHappyPath(project, [vol]);
