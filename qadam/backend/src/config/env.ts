@@ -20,7 +20,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
   GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
 
-  DASHSCOPE_API_KEY: z.string().min(1, "DASHSCOPE_API_KEY is required"),
+  DASHSCOPE_API_KEY: z.string().min(1).optional().default("placeholder"),
   QWEN_MODEL: z.string().default("qwen-turbo"),
 
   HF_TOKEN: z.string().min(1, "HF_TOKEN is required"),

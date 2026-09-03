@@ -33,9 +33,67 @@ export type EmbeddingVector = number[];
 
 /**
  * Call the Hugging Face feature-extraction pipeline for a single text.
+ * Tries the new Inference Providers endpoint (router.huggingface.co) first,
+ * then falls back to the legacy api-inference endpoint if the primary has
+ * a network error (DNS, connection refused, etc.).
+ *
  * Throws AIProviderError on timeout, rate limit, malformed response,
  * empty response, or network error.
  */
+
+/** Check whether a real HF token is configured (not a placeholder). */
+function hasValidHfToken(): boolean {
+  const token = aiConfig.huggingFace.token;
+  return !!token && token !== "placeholder" && token.length > 8;
+}
+
+/** Build the request body shared by both HF endpoints. */
+function buildHfBody(text: string): string {
+  return JSON.stringify({ inputs: text, options: { wait_for_model: true } });
+}
+
+/** Build common request headers. */
+function buildHfHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${aiConfig.huggingFace.token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Attempt a single fetch call to a HF endpoint.
+ * Returns the Response on success or a typed error on network/timeout failure.
+ */
+async function hfFetch(
+  url: string,
+  body: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HF_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new AIProviderError("TIMEOUT", "huggingface", "HF embedding request timed out");
+    }
+    // Re-throw as a generic network error — caller decides whether to
+    // retry the fallback endpoint or propagate.
+    throw new AIProviderError(
+      "NETWORK_ERROR",
+      "huggingface",
+      err instanceof Error ? err.message : "Unknown network error"
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function generateEmbedding(text: string): Promise<EmbeddingVector> {
   if (!text.trim()) {
     throw new AIProviderError(
@@ -45,36 +103,49 @@ export async function generateEmbedding(text: string): Promise<EmbeddingVector> 
     );
   }
 
-  const url = `https://api-inference.huggingface.co/pipeline/feature-extraction/${aiConfig.huggingFace.embeddingModel}`;
-
-  let response: Response;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HF_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${aiConfig.huggingFace.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          inputs: text,
-          options: { wait_for_model: false },
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new AIProviderError("TIMEOUT", "huggingface", "HF embedding request timed out");
-    }
+  if (!hasValidHfToken()) {
     throw new AIProviderError(
       "NETWORK_ERROR",
       "huggingface",
-      err instanceof Error ? err.message : "Unknown network error"
+      "HF_TOKEN is not configured. Set a valid Hugging Face API token in .env to enable embeddings."
+    );
+  }
+
+  const model = aiConfig.huggingFace.embeddingModel;
+  const body = buildHfBody(text);
+  const headers = buildHfHeaders();
+
+  // Primary: new Inference Providers endpoint (router.huggingface.co).
+  // Fallback: legacy api-inference endpoint.
+  const endpoints = [
+    `https://router.huggingface.co/hf-inference/models/${model}/pipeline/feature-extraction`,
+    `https://api-inference.huggingface.co/models/${model}`,
+  ];
+
+  let response: Response | undefined;
+  let lastError: AIProviderError | undefined;
+
+  for (const url of endpoints) {
+    try {
+      response = await hfFetch(url, body, headers);
+      break; // got a response (may still be non-2xx — handled below)
+    } catch (err) {
+      // Network/timeout error — try the next endpoint.
+      lastError = err instanceof AIProviderError ? err : undefined;
+      if (lastError?.code === "TIMEOUT") throw lastError; // no point retrying a timeout
+      logger.warn("HF endpoint unreachable, trying fallback", {
+        url,
+        error: lastError?.message ?? "unknown",
+      });
+    }
+  }
+
+  if (!response) {
+    // Both endpoints failed at the network level
+    throw lastError ?? new AIProviderError(
+      "NETWORK_ERROR",
+      "huggingface",
+      "All HF embedding endpoints are unreachable"
     );
   }
 
@@ -82,7 +153,6 @@ export async function generateEmbedding(text: string): Promise<EmbeddingVector> 
     throw new AIProviderError("RATE_LIMITED", "huggingface", "HF rate limit exceeded");
   }
   if (response.status === 503) {
-    // Model is loading — surface as rate-limit so callers can retry later.
     throw new AIProviderError(
       "RATE_LIMITED",
       "huggingface",

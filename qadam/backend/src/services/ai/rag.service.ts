@@ -62,10 +62,12 @@ const NGO_SYSTEM =
 const VOLUNTEER_SYSTEM =
   `${SHARED_SYSTEM} ` +
   "You are answering questions for a volunteer user. Ground your answer " +
-  "in the public project data provided below. If the context does not " +
-  "contain enough information, say so clearly. You may also answer general " +
-  "platform questions (how to register, how matching works, etc.) from " +
-  "your own knowledge.";
+  "in the public project data and NGO knowledge-base content provided below. " +
+  "If the context does not contain enough information, say so clearly. " +
+  "You may also answer general platform questions (how to register, how " +
+  "matching works, etc.) from your own knowledge. " +
+  "When citing information from NGO documents, mention the NGO name and " +
+  "document file name.";
 
 // -- Public API ----------------------------------------------------------------
 
@@ -171,7 +173,10 @@ async function chatForNgo(
 // -- Volunteer path (public context, no private RAG) ---------------------------
 
 async function chatForVolunteer(message: string): Promise<ChatResponse> {
-  // 1. Fetch relevant public project data as context.
+  // 1. Embed the question for knowledge-base search.
+  const questionEmbedding = await generateEmbedding(message);
+
+  // 2. Fetch relevant public project data as context.
   const { data: projects } = await supabase
     .from("projects")
     .select("title, category, description, location_name, required_skills, ngo_id")
@@ -179,13 +184,32 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     .order("created_at", { ascending: false })
     .limit(VOLUNTEER_CONTEXT_PROJECTS);
 
-  // 2. Fetch NGO names for the projects.
+  // 3. Search public knowledge chunks across ALL NGOs via pgvector.
+  const { data: knowledgeChunks } = await supabase.rpc(
+    "match_public_knowledge",
+    {
+      query_embedding: JSON.stringify(questionEmbedding),
+      match_threshold: RAG_SIMILARITY_THRESHOLD,
+      match_count: RAG_MAX_CHUNKS,
+    }
+  );
+
+  const matchedChunks = (knowledgeChunks ?? []) as {
+    chunk_id: string;
+    content: string;
+    document_id: string;
+    ngo_id: string;
+    similarity: number;
+  }[];
+
+  // 4. Resolve NGO names and document file names.
   const ngoIds = [
-    ...new Set(
-      (projects ?? [])
+    ...new Set([
+      ...(projects ?? [])
         .map((p) => (p as { ngo_id: string }).ngo_id)
-        .filter(Boolean)
-    ),
+        .filter(Boolean),
+      ...matchedChunks.map((c) => c.ngo_id).filter(Boolean),
+    ]),
   ];
   const { data: ngos } = ngoIds.length
     ? await supabase.from("ngos").select("id, name").in("id", ngoIds)
@@ -196,30 +220,71 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     ngoNameMap.set(ngo.id, ngo.name);
   }
 
-  // 3. Build context text from public data.
-  let contextText = "No active projects are currently available.";
-  if (projects && projects.length > 0) {
-    contextText = (projects as Record<string, unknown>[]).map((p, i) => {
-      const skills = Array.isArray(p.required_skills)
-        ? (p.required_skills as string[]).join(", ")
-        : "";
-      return (
-        `[Project ${i + 1}]\n` +
-        `Title: ${p.title}\n` +
-        `Category: ${p.category}\n` +
-        `NGO: ${ngoNameMap.get(p.ngo_id as string) ?? "Unknown"}\n` +
-        `Location: ${(p.location_name as string) ?? "Not specified"}\n` +
-        `Skills: ${skills || "None specified"}\n` +
-        `Description: ${(p.description as string).slice(0, 300)}`
-      );
-    }).join("\n\n");
+  // Resolve document file names for matched chunks.
+  const docIds = [...new Set(matchedChunks.map((c) => c.document_id))];
+  const { data: docs } = docIds.length
+    ? await supabase
+        .from("knowledge_documents")
+        .select("id, file_name, ngo_id")
+        .in("id", docIds)
+    : { data: [] };
+
+  const fileNameMap = new Map<string, string>();
+  const docNgoMap = new Map<string, string>();
+  for (const doc of (docs ?? []) as {
+    id: string;
+    file_name: string;
+    ngo_id: string;
+  }[]) {
+    fileNameMap.set(doc.id, doc.file_name);
+    docNgoMap.set(doc.id, doc.ngo_id);
   }
 
+  // 5. Build context text from public project data.
+  const contextParts: string[] = [];
+
+  if (projects && projects.length > 0) {
+    const projectText = (projects as Record<string, unknown>[])
+      .map((p, i) => {
+        const skills = Array.isArray(p.required_skills)
+          ? (p.required_skills as string[]).join(", ")
+          : "";
+        return (
+          `[Project ${i + 1}]\n` +
+          `Title: ${p.title}\n` +
+          `Category: ${p.category}\n` +
+          `NGO: ${ngoNameMap.get(p.ngo_id as string) ?? "Unknown"}\n` +
+          `Location: ${(p.location_name as string) ?? "Not specified"}\n` +
+          `Skills: ${skills || "None specified"}\n` +
+          `Description: ${(p.description as string).slice(0, 300)}`
+        );
+      })
+      .join("\n\n");
+    contextParts.push(`--- Public Projects ---\n${projectText}`);
+  } else {
+    contextParts.push("--- Public Projects ---\nNo active projects are currently available.");
+  }
+
+  // 6. Build context text from matched knowledge chunks.
+  if (matchedChunks.length > 0) {
+    const knowledgeText = matchedChunks
+      .map((c, i) => {
+        const ngoName =
+          ngoNameMap.get(docNgoMap.get(c.document_id) ?? c.ngo_id) ?? "Unknown NGO";
+        const fileName = fileNameMap.get(c.document_id) ?? "Unknown document";
+        return `[Knowledge ${i + 1} — ${ngoName}: ${fileName}]\n${c.content}`;
+      })
+      .join("\n\n");
+    contextParts.push(`--- NGO Knowledge Base ---\n${knowledgeText}`);
+  }
+
+  const contextText = contextParts.join("\n\n");
+
   const prompt =
-    `Public project data:\n${contextText}\n\n` +
+    `Public data:\n${contextText}\n\n` +
     `Question: ${message}`;
 
-  // 4. Call LLM (Gemini first, Qwen fallback).
+  // 7. Call LLM (Gemini first, Qwen fallback).
   const answer = await callLLMSafely({
     prompt,
     systemInstruction: VOLUNTEER_SYSTEM,
@@ -227,7 +292,15 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     maxTokens: 1024,
   });
 
-  return { answer, sources: [] };
+  // 8. Build sources list from matched knowledge chunks.
+  const sources: ChatSource[] = matchedChunks.map((c) => ({
+    document_id: c.document_id,
+    chunk_id: c.chunk_id,
+    file_name: fileNameMap.get(c.document_id) ?? "Unknown document",
+    similarity: c.similarity,
+  }));
+
+  return { answer, sources };
 }
 
 // -- Helpers -------------------------------------------------------------------

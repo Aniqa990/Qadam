@@ -22,8 +22,8 @@ function identity(req: Request): RequestIdentity {
  * POST /api/knowledge/documents
  *
  * Upload a document for RAG processing. Accepts multipart/form-data with
- * a single "file" field. Ingestion runs synchronously; the response
- * includes the final document status.
+ * a single "file" field. Ingestion runs out-of-band; the response returns
+ * immediately with status "uploaded" and the frontend polls for changes.
  */
 export async function uploadDocument(
   req: Request,
