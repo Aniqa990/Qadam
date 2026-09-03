@@ -10,6 +10,7 @@ import projectRoutes from "./routes/project.routes";
 import registrationRoutes from "./routes/registration.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import volunteerRoutes from "./routes/volunteer.routes";
+import aiRoutes from "./routes/ai.routes";
 
 /**
  * Express app configuration. Route modules for volunteer/ngo/etc. are
@@ -41,10 +42,10 @@ export function createApp(): Express {
   app.use("/api/volunteers", volunteerRoutes);
   app.use("/api/ngos", ngoRoutes);
   app.use("/api/attendance", attendanceRoutes);
+  app.use("/api/ai", aiRoutes);
 
   // Future route modules mount here, e.g.:
   // app.use("/api/matching", matchingRoutes);
-  // app.use("/api/ai", aiRoutes);
   // app.use("/api/knowledge", knowledgeRoutes);
   // app.use("/api/impact", impactRoutes);
 

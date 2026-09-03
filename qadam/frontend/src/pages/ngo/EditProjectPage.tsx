@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import CopilotPanel from "@/components/CopilotPanel";
 import NgoNav from "@/components/NgoNav";
-import ProjectForm from "@/components/ProjectForm";
+import ProjectForm, { type ProjectFormHandle } from "@/components/ProjectForm";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
@@ -46,13 +47,14 @@ const ACTIONS_BY_STATUS: Record<ProjectStatus, StatusAction[]> = {
 /**
  * frontend-routes.md "/ngo/projects/:id/edit" - edit a project and manage its
  * lifecycle. Terminal projects (completed/cancelled) are read-only, matching
- * the backend's immutability rule. The Project Copilot panel joins this page
- * in Phase 7.
+ * the backend's immutability rule. The CopilotPanel sits beside the form for
+ * non-terminal projects.
  */
 export default function EditProjectPage() {
   const { id } = useParams<{ id: string }>();
   const { api } = useApi();
   const navigate = useNavigate();
+  const formRef = useRef<ProjectFormHandle>(null);
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,7 +141,7 @@ export default function EditProjectPage() {
   return (
     <>
       <NgoNav />
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">{project.title}</h1>
@@ -220,17 +222,26 @@ export default function EditProjectPage() {
                 All changes saved.
               </p>
             )}
-            <ProjectForm
-              key={project.id}
-              initial={project}
-              submitLabel="Save changes"
-              onSubmit={async (payload) => {
-                await updateProject(api, project.id, payload);
-                setShowSaved(true);
-                window.setTimeout(() => setShowSaved(false), 3000);
-                load(); // refresh counts/status from the source of truth
-              }}
-            />
+            <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+              <div>
+                <ProjectForm
+                  ref={formRef}
+                  key={project.id}
+                  initial={project}
+                  submitLabel="Save changes"
+                  onSubmit={async (payload) => {
+                    await updateProject(api, project.id, payload);
+                    setShowSaved(true);
+                    window.setTimeout(() => setShowSaved(false), 3000);
+                    load(); // refresh counts/status from the source of truth
+                  }}
+                />
+              </div>
+
+              <div className="lg:sticky lg:top-4 lg:self-start">
+                <CopilotPanel api={api} onApply={(draft) => formRef.current?.applyDraft(draft)} />
+              </div>
+            </div>
           </>
         )}
       </main>

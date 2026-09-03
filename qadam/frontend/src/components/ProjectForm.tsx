@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { PROJECT_CATEGORIES, type ProjectFormPayload } from "@/lib/projects";
+import type { CopilotDraft } from "@/lib/copilot";
 import type { ProjectDetail } from "@/types/project";
 import { cn } from "@/lib/utils";
 import LocationPicker, { type LatLng } from "./LocationPicker";
@@ -143,13 +144,24 @@ interface ProjectFormProps {
   onSubmit: (payload: ProjectFormPayload) => Promise<void>;
 }
 
+/** Methods exposed to the parent via ref (for CopilotPanel's "Apply to Form"). */
+export interface ProjectFormHandle {
+  /** Populates editable form fields from a copilot draft without submitting. */
+  applyDraft: (draft: CopilotDraft) => void;
+}
+
 /**
  * Create/edit project form (frontend-routes.md "ProjectForm"). Owns local
  * form state and client-side validation only - the API call lives in the
- * page component (AGENTS.md: no business logic in React components). The
- * Project Copilot panel joins this form in Phase 7.
+ * page component (AGENTS.md: no business logic in React components).
+ *
+ * The parent can call `ref.current.applyDraft(draft)` to populate fields
+ * from the CopilotPanel without triggering a submit.
  */
-export default function ProjectForm({ initial, submitLabel, onSubmit }: ProjectFormProps) {
+const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function ProjectForm(
+  { initial, submitLabel, onSubmit },
+  ref
+) {
   const [values, setValues] = useState<ProjectFormValues>(() => toFormValues(initial));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -158,6 +170,26 @@ export default function ProjectForm({ initial, submitLabel, onSubmit }: ProjectF
   function set<K extends keyof ProjectFormValues>(key: K, value: ProjectFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
+
+  const applyDraft = useCallback((draft: CopilotDraft) => {
+    setValues((prev) => ({
+      ...prev,
+      title: draft.title || prev.title,
+      description: draft.description || prev.description,
+      category: draft.category || prev.category,
+      required_skills: draft.required_skills ?? prev.required_skills,
+      responsibilities: draft.responsibilities ?? prev.responsibilities,
+      min_age:
+        draft.eligibility?.min_age != null ? String(draft.eligibility.min_age) : prev.min_age,
+      custom_requirements: draft.eligibility?.custom_requirements ?? prev.custom_requirements,
+      capacity: draft.capacity ? String(draft.capacity) : prev.capacity,
+      // Location, dates, hours, and whatsapp_group_url are intentionally NOT
+      // overwritten - they are user-controlled per AGENTS.md.
+    }));
+    setErrors({});
+  }, []);
+
+  useImperativeHandle(ref, () => ({ applyDraft }), [applyDraft]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -451,4 +483,6 @@ export default function ProjectForm({ initial, submitLabel, onSubmit }: ProjectF
       </div>
     </form>
   );
-}
+});
+
+export default ProjectForm;
