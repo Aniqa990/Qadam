@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { getNgoProfile, updateNgoProfile } from "@/lib/profiles";
 import type { NgoProfile } from "@/types/profile";
-import NgoNav from "@/components/NgoNav";
 import NgoProfileForm from "@/components/NgoProfileForm";
 
 /**
@@ -32,7 +31,6 @@ export default function NgoProfilePage() {
 
   return (
     <>
-      <NgoNav />
       <main className="mx-auto max-w-2xl px-4 py-10">
         <header className="mb-8">
           <h1 className="text-2xl font-bold">Organization profile</h1>

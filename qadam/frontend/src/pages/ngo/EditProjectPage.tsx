@@ -111,7 +111,6 @@ export default function EditProjectPage() {
   if (loading) {
     return (
       <>
-        <NgoNav />
         <main className="mx-auto max-w-3xl px-4 py-8">
           <LoadingState label="Loading project..." />
         </main>
@@ -122,7 +121,6 @@ export default function EditProjectPage() {
   if (error || !project) {
     return (
       <>
-        <NgoNav />
         <main className="mx-auto max-w-3xl space-y-4 px-4 py-8">
           <ErrorState message={error ?? "Project not found"} onRetry={load} />
           <div className="text-center">

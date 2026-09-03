@@ -4,7 +4,9 @@ import { env } from "./config/env";
 import { errorMiddleware } from "./middleware/error.middleware";
 import { notFoundMiddleware } from "./middleware/not-found.middleware";
 import authRoutes from "./routes/auth.routes";
+import aiRoutes from "./routes/ai.routes";
 import healthRoutes from "./routes/health.routes";
+import knowledgeRoutes from "./routes/knowledge.routes";
 import ngoRoutes from "./routes/ngo.routes";
 import projectRoutes from "./routes/project.routes";
 import registrationRoutes from "./routes/registration.routes";
@@ -42,11 +44,11 @@ export function createApp(): Express {
   app.use("/api/volunteers", volunteerRoutes);
   app.use("/api/ngos", ngoRoutes);
   app.use("/api/attendance", attendanceRoutes);
-  app.use("/api/ai", aiRoutes);
+  app.use("/api/knowledge", knowledgeRoutes);
 
   // Future route modules mount here, e.g.:
   // app.use("/api/matching", matchingRoutes);
-  // app.use("/api/knowledge", knowledgeRoutes);
+  app.use("/api/ai", aiRoutes);
   // app.use("/api/impact", impactRoutes);
 
   app.use(notFoundMiddleware);

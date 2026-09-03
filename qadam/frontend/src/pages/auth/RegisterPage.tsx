@@ -44,7 +44,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <SignUp signInUrl="/login" unsafeMetadata={{ role }} />
+      <SignUp signInUrl="/login" forceRedirectUrl="/" unsafeMetadata={{ role }} />
     </div>
   );
 }
