@@ -42,14 +42,14 @@ export function createApp(): Express {
   app.use("/api/auth", authRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/registrations", registrationRoutes);
-  
-  app.use("/api/volunteers", volunteerRoutes);
-  app.use("/api/ngos", ngoRoutes);
-  app.use("/api/attendance", attendanceRoutes);
-  app.use("/api/knowledge", knowledgeRoutes);
 
-  app.use("/api/ai", aiRoutes);
-  // app.use("/api/impact", impactRoutes);
+app.use("/api/volunteers", volunteerRoutes);
+app.use("/api/ngos", ngoRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/knowledge", knowledgeRoutes);
+app.use("/api/matching", matchingRoutes);
+app.use("/api/ai", aiRoutes);
+// app.use("/api/impact", impactRoutes);
 
   app.use(notFoundMiddleware);
   app.use(errorMiddleware);
