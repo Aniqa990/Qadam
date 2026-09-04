@@ -47,7 +47,7 @@ const inputClass =
 
 /**
  * frontend-routes.md "/projects" - browse projects. The backend scopes by
- * role: volunteers see published/active/completed opportunities; NGOs see
+ * role: volunteers see upcoming/active/completed opportunities; NGOs see
  * their own projects. Deterministic filters only (cause, skill, date
  * window, location text, "near me" proximity) - semantic matching lives in
  * the matching endpoints.

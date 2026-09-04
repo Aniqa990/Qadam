@@ -25,15 +25,19 @@ import {
  */
 
 /** Draft projects are invisible to volunteers (and other NGOs). */
-const VOLUNTEER_VISIBLE_STATUSES: readonly ProjectStatus[] = ["published", "active", "completed"];
+const VOLUNTEER_VISIBLE_STATUSES: readonly ProjectStatus[] = ["upcoming", "active", "completed"];
 
-/** Terminal states: no edits, no transitions, no new registrations. */
-const TERMINAL_STATUSES: readonly ProjectStatus[] = ["completed", "cancelled"];
+/**
+ * Statuses in which a project's details can still be edited (mutation guard
+ * for PUT /api/projects/:id). Once a project is active - or past "upcoming"
+ * - its details are frozen; only lifecycle transitions remain.
+ */
+const EDITABLE_STATUSES: readonly ProjectStatus[] = ["draft", "upcoming"];
 
 /** Allowed lifecycle transitions - anything else is a 409 conflict. */
 const STATUS_TRANSITIONS: Record<ProjectStatus, readonly ProjectStatus[]> = {
-  draft: ["published"],
-  published: ["active", "cancelled"],
+  draft: ["upcoming"],
+  upcoming: ["active", "cancelled"],
   active: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -190,7 +194,7 @@ function distanceToProjectKm(
 
 /**
  * GET /api/projects - role-scoped listing. NGOs see all of their own projects
- * (drafts included); volunteers only ever see published/active/completed.
+ * (drafts included); volunteers only ever see upcoming/active/completed.
  */
 export async function listProjects(
   identity: RequestIdentity,
@@ -386,8 +390,13 @@ export async function updateProject(
 ): Promise<{ id: string; status: ProjectStatus }> {
   const row = await loadProjectForOwner(identity, projectId);
 
-  if (TERMINAL_STATUSES.includes(row.status)) {
-    throw new ConflictError("Completed or cancelled projects can no longer be edited");
+  // Mutation guard: a project that is active (or past "upcoming") accepts no
+  // further detail edits - the request fails with 400 rather than being
+  // silently ignored.
+  if (!EDITABLE_STATUSES.includes(row.status)) {
+    throw new ValidationError(
+      `Projects in '${row.status}' status can no longer be edited - only draft or upcoming projects are editable`
+    );
   }
 
   // Cross-field rules are checked against the MERGED record (a patch may only
@@ -504,7 +513,7 @@ export async function transitionProject(
   if (target === "cancelled") {
     await cancelConfirmedRegistrations(projectId);
   }
-  if (target === "published") {
+  if (target === "upcoming") {
     triggerEmbeddingRegeneration(projectId);
   }
 

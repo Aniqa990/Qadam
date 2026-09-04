@@ -35,7 +35,7 @@ export const MATCHING_WEIGHTS = {
 const MAX_DISTANCE_KM = 100;
 
 /** Projects in these statuses are matchable. */
-const MATCHABLE_STATUSES: readonly ProjectStatus[] = ["published", "active"];
+const MATCHABLE_STATUSES: readonly ProjectStatus[] = ["upcoming", "active"];
 
 // -- Types ---------------------------------------------------------------------
 
@@ -75,7 +75,6 @@ interface VolunteerCandidate {
   full_name: string;
   skills: string[];
   interests: string[];
-  experience: string | null;
   location_lat: number | null;
   location_lng: number | null;
   age: number | null;
@@ -135,7 +134,7 @@ export function scoreDistance(
 // -- Deterministic filters (exported for unit testing) -------------------------
 
 /**
- * Hard-filter: project status must be published or active.
+ * Hard-filter: project status must be upcoming or active.
  */
 export function passesStatusFilter(status: ProjectStatus): boolean {
   return (MATCHABLE_STATUSES as readonly string[]).includes(status);
@@ -401,7 +400,7 @@ export async function matchVolunteers(
   }
   if (!passesStatusFilter(project.status)) {
     throw new AppError(
-      "Matching is only available for published or active projects",
+      "Matching is only available for upcoming or active projects",
       400,
       "PROJECT_NOT_MATCHABLE"
     );
@@ -427,7 +426,7 @@ export async function matchVolunteers(
   const { data: volunteersData, error: volunteersError } = await supabase
     .from("volunteers")
     .select(
-      "id, full_name, skills, interests, experience, location_lat, location_lng, age"
+      "id, full_name, skills, interests, location_lat, location_lng, age"
     )
     .eq("onboarding_complete", true);
   if (volunteersError) {
@@ -563,7 +562,7 @@ function scoreProject(
  *
  * Returns ranked project recommendations for the authenticated volunteer.
  * Uses the same three-step pipeline as matchVolunteers, but reversed:
- * one volunteer scored against all published/active projects.
+ * one volunteer scored against all upcoming/active projects.
  *
  * Hard filters: project status, capacity, distance, eligibility.
  * Scoring: distance 0.50 + skills 0.30 + embedding 0.20.
@@ -604,7 +603,7 @@ export async function matchProjects(
       ? { lat: volunteer.location_lat, lng: volunteer.location_lng }
       : null;
 
-  // 2. Load all published/active projects with their NGO name.
+  // 2. Load all upcoming/active projects with their NGO name.
   const { data: projectsData, error: projectsError } = await supabase
     .from("projects")
     .select(

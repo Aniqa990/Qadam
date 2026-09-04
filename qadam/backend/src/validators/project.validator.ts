@@ -10,7 +10,7 @@ import { z } from "zod";
  * owner comes from req.identity and status only changes via transition
  * endpoints.
  */
-export const PROJECT_STATUSES = ["draft", "published", "active", "completed", "cancelled"] as const;
+export const PROJECT_STATUSES = ["draft", "upcoming", "active", "completed", "cancelled"] as const;
 
 const skillSchema = z
   .string()

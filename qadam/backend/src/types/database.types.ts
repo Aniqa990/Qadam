@@ -117,9 +117,9 @@ export type Database = {
         ]
       }
       volunteers: {
-        Row: { age: number | null; auth_user_id: string; created_at: string; email: string; experience: string | null; full_name: string; id: string; interests: string[]; location_lat: number | null; location_lng: number | null; location_name: string | null; onboarding_complete: boolean; phone: string | null; skills: string[]; updated_at: string }
-        Insert: { age?: number | null; auth_user_id: string; created_at?: string; email: string; experience?: string | null; full_name: string; id?: string; interests?: string[]; location_lat?: number | null; location_lng?: number | null; location_name?: string | null; onboarding_complete?: boolean; phone?: string | null; skills?: string[]; updated_at?: string }
-        Update: { age?: number | null; auth_user_id?: string; created_at?: string; email?: string; experience?: string | null; full_name?: string; id?: string; interests?: string[]; location_lat?: number | null; location_lng?: number | null; location_name?: string | null; onboarding_complete?: boolean; phone?: string | null; skills?: string[]; updated_at?: string }
+        Row: { age: number | null; auth_user_id: string; created_at: string; email: string; full_name: string; id: string; interests: string[]; location_lat: number | null; location_lng: number | null; location_name: string | null; onboarding_complete: boolean; phone: string | null; skills: string[]; updated_at: string }
+        Insert: { age?: number | null; auth_user_id: string; created_at?: string; email: string; full_name: string; id?: string; interests?: string[]; location_lat?: number | null; location_lng?: number | null; location_name?: string | null; onboarding_complete?: boolean; phone?: string | null; skills?: string[]; updated_at?: string }
+        Update: { age?: number | null; auth_user_id?: string; created_at?: string; email?: string; full_name?: string; id?: string; interests?: string[]; location_lat?: number | null; location_lng?: number | null; location_name?: string | null; onboarding_complete?: boolean; phone?: string | null; skills?: string[]; updated_at?: string }
         Relationships: []
       }
     }
@@ -140,7 +140,7 @@ export type Database = {
     }
     Enums: {
       document_status: "uploaded" | "processing" | "ready" | "failed"
-      project_status: "draft" | "published" | "active" | "completed" | "cancelled"
+      project_status: "draft" | "upcoming" | "active" | "completed" | "cancelled"
       registration_status: "confirmed" | "cancelled"
       user_role: "volunteer" | "ngo"
     }
@@ -199,7 +199,7 @@ export const Constants = {
   public: {
     Enums: {
       document_status: ["uploaded", "processing", "ready", "failed"],
-      project_status: ["draft", "published", "active", "completed", "cancelled"],
+      project_status: ["draft", "upcoming", "active", "completed", "cancelled"],
       registration_status: ["confirmed", "cancelled"],
       user_role: ["volunteer", "ngo"],
     },

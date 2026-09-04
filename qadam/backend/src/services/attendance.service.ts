@@ -42,7 +42,7 @@ import { AppError, AuthorizationError, NotFoundError } from "../utils/errors";
  */
 
 /** Attendance events can only be created for projects in these statuses. */
-const ATTENDANCE_PROJECT_STATUSES: readonly ProjectStatus[] = ["published", "active"];
+const ATTENDANCE_PROJECT_STATUSES: readonly ProjectStatus[] = ["upcoming", "active"];
 
 /** The history view returns the volunteer's latest N completed events. */
 const HISTORY_LIMIT = 10;
@@ -154,7 +154,7 @@ export async function createAttendanceEvent(
 
   if (!ATTENDANCE_PROJECT_STATUSES.includes(project.status)) {
     throw new AppError(
-      `Attendance events can only be created for published or active projects (this project is '${project.status}')`,
+      `Attendance events can only be created for upcoming or active projects (this project is '${project.status}')`,
       400,
       "PROJECT_NOT_OPEN"
     );

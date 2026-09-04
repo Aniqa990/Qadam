@@ -59,7 +59,7 @@ vi.mock("../../src/lib/supabase", () => {
 });
 
 import * as supabaseModule from "../../src/lib/supabase";
-import { listProjects } from "../../src/services/project.service";
+import { listProjects, updateProject } from "../../src/services/project.service";
 import { haversineDistanceKm } from "../../src/utils/distance";
 
 const mock = (supabaseModule as unknown as { __mock: {
@@ -104,7 +104,7 @@ function projectRow(overrides: Record<string, unknown> = {}) {
     eligibility: {},
     capacity: 10,
     whatsapp_group_url: null,
-    status: "published",
+    status: "upcoming",
     start_date: "2026-09-15",
     end_date: "2026-12-15",
     event_date: null,
@@ -134,6 +134,66 @@ function queueVolunteerLocation(
 function queueRegistrations() {
   mock.queue("registrations", [{ data: [], error: null }]);
 }
+
+describe("updateProject mutation guard", () => {
+  beforeEach(() => mock.reset());
+
+  /** Non-embedding, non-capacity field: exercises the plain update path. */
+  const PATCH = { whatsapp_group_url: "https://chat.example.com/group" };
+
+  /**
+   * Queue the two "projects" results an accepted edit consumes: the row
+   * read by loadProjectForOwner, then the update itself. (mock.queue
+   * replaces the table queue, so both must be queued in one call.)
+   */
+  function queueProject(status: string) {
+    mock.queue("projects", [
+      { data: projectRow({ status }), error: null },
+      { data: null, error: null },
+    ]);
+  }
+
+  it("allows edits while the project is a draft", async () => {
+    queueProject("draft");
+
+    const result = await updateProject(ngoIdentity(), "proj-1", PATCH);
+
+    expect(result).toMatchObject({ id: "proj-1", status: "draft" });
+  });
+
+  it("allows edits while the project is upcoming", async () => {
+    queueProject("upcoming");
+
+    const result = await updateProject(ngoIdentity(), "proj-1", PATCH);
+
+    expect(result).toMatchObject({ id: "proj-1", status: "upcoming" });
+  });
+
+  it("rejects edits once the project is active (400)", async () => {
+    queueProject("active");
+
+    await expect(updateProject(ngoIdentity(), "proj-1", PATCH)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+  });
+
+  it("rejects edits for completed projects (400)", async () => {
+    queueProject("completed");
+
+    await expect(updateProject(ngoIdentity(), "proj-1", PATCH)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it("rejects edits for cancelled projects (400)", async () => {
+    queueProject("cancelled");
+
+    await expect(updateProject(ngoIdentity(), "proj-1", PATCH)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+});
 
 // =============================================================================
 

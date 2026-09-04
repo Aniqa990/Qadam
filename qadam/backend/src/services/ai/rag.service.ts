@@ -180,7 +180,7 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
   const { data: projects } = await supabase
     .from("projects")
     .select("title, category, description, location_name, required_skills, ngo_id")
-    .in("status", ["published", "active"])
+    .in("status", ["upcoming", "active"])
     .order("created_at", { ascending: false })
     .limit(VOLUNTEER_CONTEXT_PROJECTS);
 

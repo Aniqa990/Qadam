@@ -183,7 +183,7 @@ Hard constraints that must pass before scoring. A volunteer who fails any filter
 -- Pseudocode for the filter query
 SELECT v.* FROM volunteers v
 WHERE
-  EXISTS (SELECT 1 FROM projects p WHERE p.id = :projectId AND p.status IN ('published', 'active'))
+  EXISTS (SELECT 1 FROM projects p WHERE p.id = :projectId AND p.status IN ('upcoming', 'active'))
   AND (SELECT COUNT(*) FROM registrations r WHERE r.project_id = :projectId AND r.status = 'confirmed') < p.capacity
   AND NOT EXISTS (SELECT 1 FROM registrations r WHERE r.volunteer_id = v.id AND r.project_id = :projectId)
   AND v.onboarding_complete = true
@@ -199,24 +199,23 @@ For each candidate that passes deterministic filtering, compute a composite scor
 
 ```text
 composite_score = (
-    0.35 × S_distance
+    0.50 × S_distance
   + 0.30 × S_skills
-  + 0.15 × S_interests
   + 0.20 × S_embedding
 )
 ```
 
-**Weights must match API Contracts:** distance `0.35` (highest), skills `0.30`, interests `0.15`, embedding similarity `0.20`.
+**Weights must match API Contracts:** distance `0.50` (highest), skills `0.30`, embedding similarity `0.20`.
 
 **Embedding inputs never contain location or availability fields.**
 
-Volunteer embedding input: `Skills + Interests + Experience` only.
+Volunteer embedding input: `Skills + Interests` only.
 
 Project embedding input: `Title + Category + Description + Required Skills + Responsibilities` only.
 
 **S_distance:** `distance_km = haversine(volunteer.location_lat, volunteer.location_lng, project.location_lat, project.location_lng)` and `S_distance = 1 / (1 + distance_km)`. If either exact pin is missing, drop the distance term and proportionally renormalize the remaining weights.
 
-**S_skills** and **S_interests** use deterministic set-overlap/Jaccard-style scoring. **S_embedding** uses pgvector cosine similarity.
+**S_skills** uses deterministic set-overlap/Jaccard-style scoring. **S_embedding** uses pgvector cosine similarity.
 
 ### Step 3: Ranking + Explanation
 
@@ -224,7 +223,6 @@ Project embedding input: `Title + Category + Description + Required Skills + Res
 - Return top-N (default 20, configurable via `?limit=`).
 - Each result includes a `reasons` object with per-factor breakdown:
   - `skills_match`: which skills matched, which are missing
-  - `interests_match`: which interests aligned
   - `embedding_similarity`: raw cosine similarity value
   - `distance_km`: actual distance (when available)
 
@@ -236,14 +234,14 @@ Embeddings are **not** generated on every matching request. They are generated/u
 |------------------------------------|------------------------------------------------|
 | Volunteer profile created/updated  | Regenerate `volunteer_embeddings`              |
 | Volunteer skills changed           | Regenerate `volunteer_embeddings`              |
-| Project created/published          | Generate `project_embeddings`                  |
+| Project created/published (upcoming) | Generate `project_embeddings`                  |
 | Project description/skills changed | Regenerate `project_embeddings`                |
 
 **Embedding input text construction:**
 
 Volunteer:
 ```
-"Skills: {skills joined}. Interests: {interests joined}. Experience: {experience}. "
+"Skills: {skills joined}. Interests: {interests joined}."
 ```
 
 Project:

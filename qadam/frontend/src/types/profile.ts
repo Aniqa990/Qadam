@@ -7,7 +7,6 @@ export interface VolunteerProfile {
   phone: string | null;
   skills: string[];
   interests: string[];
-  experience: string | null;
   location_lat: number | null;
   location_lng: number | null;
   location_name: string | null;

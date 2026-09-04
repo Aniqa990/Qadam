@@ -91,7 +91,6 @@ Get the authenticated volunteer's full profile.
     "phone": "+1234567890",
     "skills": ["teaching", "mentoring", "design"],
     "interests": ["education", "youth"],
-    "experience": "3 years tutoring",
     "location_lat": 24.7136,
     "location_lng": 46.6753,
     "location_name": "Riyadh, Saudi Arabia",
@@ -117,7 +116,6 @@ Create or update the volunteer profile (onboarding).
   "phone": "+1234567890",
   "skills": ["teaching", "mentoring"],
   "interests": ["education", "youth"],
-  "experience": "3 years tutoring",
   "location_lat": 24.7136,
   "location_lng": 46.6753,
   "location_name": "Riyadh, Saudi Arabia",
@@ -273,7 +271,7 @@ Get a single NGO's public profile.
 
 List projects. Scope depends on caller role:
 - **NGO caller:** Returns all own projects (including drafts).
-- **Volunteer caller:** Returns only published/active/completed projects.
+- **Volunteer caller:** Returns only upcoming/active/completed projects.
 
 **Auth:** Required (any role)
 
@@ -386,7 +384,7 @@ Required: `title`, `description`, `category`, `capacity`, `start_date`, `end_dat
 
 ### `PUT /api/projects/:id`
 
-Update a project. Only the owning NGO can update.
+Update a project. Only the owning NGO can update. **Mutation guard:** only `draft` and `upcoming` projects can be edited — once a project is `active` (or past `upcoming`), any detail update is rejected with `400 VALIDATION_ERROR`.
 
 **Auth:** Required — NGO only (must own the project)
 
@@ -416,20 +414,20 @@ Delete a draft project. Only draft projects can be deleted.
 
 ### `POST /api/projects/:id/publish`
 
-Transition project from `draft` → `published`. Triggers embedding generation.
+Transition project from `draft` → `upcoming` (the project becomes volunteer-visible as "Upcoming"). Triggers embedding generation.
 
 **Auth:** Required — NGO only (must own the project)
 
 **Response (200):**
 ```json
-{ "success": true, "data": { "id": "uuid", "status": "published" } }
+{ "success": true, "data": { "id": "uuid", "status": "upcoming" } }
 ```
 
 ---
 
 ### `POST /api/projects/:id/activate`
 
-Transition project from `published` → `active`.
+Transition project from `upcoming` → `active`. Activating freezes the project's details (edits are rejected from this point on).
 
 **Auth:** Required — NGO only (must own the project)
 
@@ -455,7 +453,7 @@ Transition project from `active` → `completed`.
 
 ### `POST /api/projects/:id/cancel`
 
-Cancel a project (`published` or `active` → `cancelled`). Cancels all confirmed registrations.
+Cancel a project (`upcoming` or `active` → `cancelled`). Cancels all confirmed registrations.
 
 **Auth:** Required — NGO only (must own the project)
 
@@ -481,7 +479,7 @@ Register the authenticated volunteer for a project.
 
 **Server-side validation:**
 1. Volunteer has completed onboarding
-2. Project exists and status is `published` or `active`
+2. Project exists and status is `upcoming` or `active`
 3. Project is not at capacity (confirmed registrations < capacity)
 4. Volunteer is not already registered (duplicate check)
 5. Volunteer meets eligibility criteria (age, custom requirements)
@@ -797,7 +795,7 @@ Get ranked volunteer matches for a project.
 
 **Query:** `?limit=20`
 
-**Scoring weights** (applied only to candidates that already passed deterministic filtering — status, capacity, eligibility): `distance 0.35` + `skills 0.30` + `interests 0.15` + `embedding_similarity 0.20`. Distance is weighted highest per product requirement — nearby, "good enough" matches should generally outrank far-away semantically-perfect ones. `distance_score` is `1 / (1 + distance_km)` when a volunteer location is set, and is excluded (weight redistributed proportionally across the remaining factors) when either party has no coordinates.
+**Scoring weights** (applied only to candidates that already passed deterministic filtering — status, capacity, eligibility): `distance 0.50` + `skills 0.30` + `embedding_similarity 0.20`. Distance is weighted highest per product requirement — nearby, "good enough" matches should generally outrank far-away semantically-perfect ones. `distance_score` is `1 / (1 + distance_km)` when a volunteer location is set, and is excluded (weight redistributed proportionally across the remaining factors) when either party has no coordinates.
 
 **Response (200):**
 ```json
@@ -812,7 +810,6 @@ Get ranked volunteer matches for a project.
         "distance_km": 5.2,
         "distance_score": 0.16,
         "skills_match": { "score": 0.75, "matched": ["teaching", "mentoring"], "missing": ["design"] },
-        "interests_match": { "score": 0.67, "matched": ["education"] },
         "embedding_similarity": 0.85
       }
     }
@@ -844,7 +841,6 @@ Get ranked project recommendations for the authenticated volunteer.
         "distance_km": 3.1,
         "distance_score": 0.24,
         "skills_match": { "score": 0.67, "matched": ["teaching"], "missing": ["mentoring"] },
-        "interests_match": { "score": 1.0, "matched": ["education", "youth"] },
         "embedding_similarity": 0.82
       }
     }

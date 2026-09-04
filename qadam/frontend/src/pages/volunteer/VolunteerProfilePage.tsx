@@ -7,7 +7,7 @@ import VolunteerProfileForm from "@/components/VolunteerProfileForm";
 
 /**
  * /volunteer/profile (frontend-routes.md) - edit skills, interests,
- * experience, age, and location pin. Reuses the onboarding form component
+ * age, and location pin. Reuses the onboarding form component
  * pre-filled with the stored profile.
  */
 export default function VolunteerProfilePage() {
@@ -51,7 +51,7 @@ export default function VolunteerProfilePage() {
 
         {saved && (
           <div className="mb-6 flex items-center justify-between rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm text-emerald-600" role="status">
-            <span>Profile saved. Changes to skills, interests, or experience will update your matching score.</span>
+            <span>Profile saved. Changes to skills or interests will update your matching score.</span>
             <button
               type="button"
               onClick={() => setSaved(false)}

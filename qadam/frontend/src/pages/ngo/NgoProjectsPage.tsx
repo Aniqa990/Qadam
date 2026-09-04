@@ -13,7 +13,7 @@ const PAGE_SIZE = 12;
 const STATUS_FILTERS: { value: ProjectStatus | undefined; label: string }[] = [
   { value: undefined, label: "All" },
   { value: "draft", label: "Draft" },
-  { value: "published", label: "Published" },
+  { value: "upcoming", label: "Upcoming" },
   { value: "active", label: "Active" },
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
@@ -123,7 +123,7 @@ export default function NgoProjectsPage() {
                   {projects.map((project) => (
                     <div key={project.id} className="space-y-2">
                       <ProjectCard project={project} />
-                      {(project.status === "published" || project.status === "active") && (
+                      {(project.status === "upcoming" || project.status === "active") && (
                         <Link
                           to={`/ngo/matching/${project.id}`}
                           className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

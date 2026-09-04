@@ -12,7 +12,6 @@ interface VolunteerProfileFormValues {
   age: string;
   skills: string[];
   interests: string[];
-  experience: string;
   location: LatLng | null;
 }
 
@@ -22,7 +21,6 @@ const EMPTY_VALUES: VolunteerProfileFormValues = {
   age: "",
   skills: [],
   interests: [],
-  experience: "",
   location: null,
 };
 
@@ -34,7 +32,6 @@ function toFormValues(profile?: VolunteerProfile | null): VolunteerProfileFormVa
     age: profile.age != null ? String(profile.age) : "",
     skills: profile.skills ?? [],
     interests: profile.interests ?? [],
-    experience: profile.experience ?? "",
     location:
       profile.location_lat != null && profile.location_lng != null
         ? { lat: profile.location_lat, lng: profile.location_lng }
@@ -64,7 +61,6 @@ function toPayload(values: VolunteerProfileFormValues): VolunteerProfilePayload 
     phone: values.phone.trim() === "" ? null : values.phone.trim(),
     skills: values.skills,
     interests: values.interests,
-    experience: values.experience.trim() === "" ? null : values.experience.trim(),
     location_lat: values.location ? values.location.lat : null,
     location_lng: values.location ? values.location.lng : null,
     age: values.age.trim() === "" ? null : Number(values.age),
@@ -220,19 +216,6 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
           hint="Causes you care about."
         />
         {errors.interests && <p className="text-xs text-destructive">{errors.interests}</p>}
-        <div>
-          <label htmlFor="volunteer-experience" className="block text-sm font-medium">
-            Volunteer experience
-          </label>
-          <textarea
-            id="volunteer-experience"
-            value={values.experience}
-            onChange={(e) => set("experience", e.target.value)}
-            placeholder="Past volunteering, relevant work, anything that helps us match you well."
-            rows={4}
-            className={inputClass("experience")}
-          />
-        </div>
       </section>
 
       {/* Location */}

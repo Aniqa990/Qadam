@@ -4,7 +4,7 @@
  * this file owns the database row shape and the API response DTOs from
  * api-contracts.md "Projects Module".
  */
-export type ProjectStatus = "draft" | "published" | "active" | "completed" | "cancelled";
+export type ProjectStatus = "draft" | "upcoming" | "active" | "completed" | "cancelled";
 
 /**
  * projects.eligibility JSONB shape (database-schema.md). min_age is the only

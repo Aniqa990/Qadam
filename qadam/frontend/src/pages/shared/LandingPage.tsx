@@ -334,7 +334,7 @@ function FeaturesSection() {
       icon: Target,
       title: "Skills-Based Matching",
       description:
-        "Our AI analyzes volunteer skills, interests, and experience to find the perfect match for every project — no more manual sorting through hundreds of applications.",
+        "Our AI analyzes volunteer skills and interests to find the perfect match for every project — no more manual sorting through hundreds of applications.",
       color: "bg-emerald-100 text-emerald-700",
     },
     {

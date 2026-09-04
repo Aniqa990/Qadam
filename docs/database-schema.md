@@ -44,7 +44,7 @@ Clerk (external identity)
 
 ```sql
 CREATE TYPE user_role AS ENUM ('volunteer', 'ngo');
-CREATE TYPE project_status AS ENUM ('draft', 'published', 'active', 'completed', 'cancelled');
+CREATE TYPE project_status AS ENUM ('draft', 'upcoming', 'active', 'completed', 'cancelled');
 CREATE TYPE registration_status AS ENUM ('confirmed', 'cancelled');
 CREATE TYPE document_status AS ENUM ('uploaded', 'processing', 'ready', 'failed');
 ```
@@ -64,7 +64,6 @@ Extended profile for volunteer users. Links 1:1 to a Clerk identity via `auth_us
 | `phone`          | `TEXT`           |                                      | Optional                      |
 | `skills`         | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"teaching","design"}`  |
 | `interests`      | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
-| `experience`     | `TEXT`           |                                      | Free-text experience summary  |
 | `location_lat`   | `DOUBLE PRECISION`|                                     | Exact volunteer pin selected with MapLibre/OpenFreeMap |
 | `location_lng`   | `DOUBLE PRECISION`|                                     | Exact volunteer pin selected with MapLibre/OpenFreeMap |
 | `location_name`  | `TEXT`           |                                      | Format: `"City, Country"` (e.g. `"Karachi, Pakistan"`) — resolved via BigDataCloud reverse geocoding when the pin is dropped |
@@ -128,7 +127,7 @@ Projects created by NGOs with a status lifecycle.
 | `eligibility`       | `JSONB`           | NOT NULL, DEFAULT `'{}'`            | See schema below             |
 | `capacity`          | `INTEGER`         | NOT NULL, CHECK (`capacity > 0`)    | Max volunteers               |
 | `whatsapp_group_url` | `TEXT`         |                                      | Optional WhatsApp group URL |
-| `status`            | `project_status`  | NOT NULL, DEFAULT `'draft'`         | Lifecycle state              |
+| `status`            | `project_status`  | NOT NULL, DEFAULT `'draft'`         | Lifecycle: `draft → upcoming → active → completed/cancelled`; details are frozen once `active` |
 | `start_date`        | `DATE`            | NOT NULL                             |                              |
 | `end_date`          | `DATE`            | NOT NULL                             |                              |
 | `event_date`        | `DATE`            |                                      | Single-event date (if applicable) |
@@ -297,7 +296,7 @@ Cached semantic embedding of a volunteer's profile for matching.
 | `content_hash`  | `TEXT`         | NOT NULL                             | Hash of input text — detect changes |
 | `updated_at`    | `TIMESTAMPTZ`  | NOT NULL, DEFAULT `now()`           |                              |
 
-**Embedding input text:** Concatenation of `skills`, `interests`, and `experience` (free-text) only; never location or availability. Regenerated only when one of these three fields changes (see AGENTS.md AI section). Past registrations/attendance are deliberately excluded from the embedding for MVP — see "Embedding design" discussion.
+**Embedding input text:** Concatenation of `skills` and `interests` only; never location or availability. Regenerated only when one of these two fields changes (see AGENTS.md AI section). Past registrations/attendance are deliberately excluded from the embedding for MVP — see "Embedding design" discussion.
 
 **Indexes:**
 - `idx_volunteer_embeddings_embedding` — using ivfflat on `embedding vector_cosine_ops`
@@ -336,7 +335,7 @@ No frontend code queries Supabase directly, so application authorization is enfo
 | Volunteer profile     | R/W              | —                | R (limited)       | —      |
 | NGO profile           | —                | R/W              | R (limited)       | —      |
 | Projects (draft)      | —                | R/W              | —                 | —      |
-| Projects (published)  | R                | R/W              | R                 | —      |
+| Projects (upcoming)  | R                | R/W              | R                 | —      |
 | Registrations         | R/W (own)        | R (own projects) | —                 | —      |
 | Attendance            | R (own)          | R (own projects) | —                 | —      |
 | Knowledge documents   | —                | R/W (own)        | —                 | —      |

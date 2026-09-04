@@ -12,7 +12,6 @@ export interface VolunteerProfilePayload {
   phone: string | null;
   skills: string[];
   interests: string[];
-  experience: string | null;
   location_lat: number | null;
   location_lng: number | null;
   age: number | null;

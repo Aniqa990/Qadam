@@ -183,8 +183,8 @@ describe("scoreDistance", () => {
 // =============================================================================
 
 describe("passesStatusFilter", () => {
-  it("allows published projects", () => {
-    expect(passesStatusFilter("published")).toBe(true);
+  it("allows upcoming projects", () => {
+    expect(passesStatusFilter("upcoming")).toBe(true);
   });
 
   it("allows active projects", () => {
@@ -395,7 +395,7 @@ function projectRow(overrides: Record<string, unknown> = {}) {
     eligibility: {},
     capacity: 10,
     whatsapp_group_url: null,
-    status: "published" as ProjectStatus,
+    status: "upcoming" as ProjectStatus,
     start_date: "2026-09-15",
     end_date: "2026-12-15",
     event_date: null,
@@ -416,7 +416,6 @@ function volunteerRow(overrides: Record<string, unknown> = {}) {
     full_name: "Alice",
     skills: ["teaching", "coding"],
     interests: ["education", "technology"],
-    experience: "2 years tutoring",
     location_lat: 24.8607,
     location_lng: 67.0011,
     age: 25,

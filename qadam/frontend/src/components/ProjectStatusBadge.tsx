@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   draft: "bg-muted text-muted-foreground",
-  published: "bg-blue-100 text-blue-700",
+  upcoming: "bg-blue-100 text-blue-700",
   active: "bg-emerald-100 text-emerald-700",
   completed: "bg-slate-200 text-slate-700",
   cancelled: "bg-red-100 text-red-700",

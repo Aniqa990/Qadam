@@ -282,24 +282,22 @@ describe("contentHash", () => {
 // =============================================================================
 
 describe("buildVolunteerEmbeddingText", () => {
-  it("builds the canonical format: Skills. Interests. Experience.", () => {
+  it("builds the canonical format: Skills. Interests.", () => {
     const text = buildVolunteerEmbeddingText({
       skills: ["teaching", "coding"],
       interests: ["education"],
-      experience: "2 years tutoring",
     });
     expect(text).toBe(
-      "Skills: teaching, coding. Interests: education. Experience: 2 years tutoring."
+      "Skills: teaching, coding. Interests: education."
     );
   });
 
-  it("handles null experience", () => {
+  it("handles empty skills and interests", () => {
     const text = buildVolunteerEmbeddingText({
-      skills: ["teaching"],
-      interests: ["education"],
-      experience: null,
+      skills: [],
+      interests: [],
     });
-    expect(text).toBe("Skills: teaching. Interests: education. Experience: .");
+    expect(text).toBe("Skills: . Interests: .");
   });
 });
 
@@ -447,7 +445,6 @@ describe("regenerateVolunteerEmbedding", () => {
         data: {
           skills: ["teaching", "coding"],
           interests: ["education"],
-          experience: "2 years",
         },
         error: null,
       },
@@ -473,13 +470,12 @@ describe("regenerateVolunteerEmbedding", () => {
     const text = buildVolunteerEmbeddingText({
       skills: ["teaching"],
       interests: ["education"],
-      experience: null,
     });
     const expectedHash = contentHash(text);
 
     mock.queue("volunteers", [
       {
-        data: { skills: ["teaching"], interests: ["education"], experience: null },
+        data: { skills: ["teaching"], interests: ["education"] },
         error: null,
       },
     ]);
@@ -497,7 +493,7 @@ describe("regenerateVolunteerEmbedding", () => {
 
     mock.queue("volunteers", [
       {
-        data: { skills: ["a"], interests: ["b"], experience: null },
+        data: { skills: ["a"], interests: ["b"] },
         error: null,
       },
     ]);

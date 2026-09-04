@@ -14,7 +14,6 @@ export interface VolunteerRow {
   phone: string | null;
   skills: string[] | null;
   interests: string[] | null;
-  experience: string | null;
   location_lat: number | null;
   location_lng: number | null;
   location_name: string | null;
@@ -31,7 +30,6 @@ export interface VolunteerProfile {
   phone: string | null;
   skills: string[];
   interests: string[];
-  experience: string | null;
   location_lat: number | null;
   location_lng: number | null;
   location_name: string | null;

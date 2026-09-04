@@ -2,7 +2,7 @@
  * Frontend mirrors of the projects API DTOs (api-contracts.md "Projects
  * Module" / backend types/project.types.ts). Keep in sync with the backend.
  */
-export type ProjectStatus = "draft" | "published" | "active" | "completed" | "cancelled";
+export type ProjectStatus = "draft" | "upcoming" | "active" | "completed" | "cancelled";
 
 export interface ProjectEligibility {
   min_age?: number;
