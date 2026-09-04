@@ -33,8 +33,9 @@ export interface GenerateTextParams {
 interface DashScopeResponse {
   choices?: Array<{
     message?: { content?: string };
-  >>;
+  }>;
 }
+
 
 // -- Public API ----------------------------------------------------------------
 
