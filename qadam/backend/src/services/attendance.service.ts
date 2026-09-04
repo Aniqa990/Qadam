@@ -11,6 +11,8 @@ import type {
   AttendanceRow,
   CheckInResult,
   CheckOutResult,
+  ScanInput,
+  ScanResult,
   VolunteerAttendanceHistoryItem,
 } from "../types/attendance.types";
 import type {
@@ -398,6 +400,128 @@ export async function checkOut(identity: RequestIdentity, input: AttendanceScanB
 
   return {
     attendance_id: updated.id,
+    check_in: updated.check_in,
+    check_out: updated.check_out,
+    hours: updated.hours,
+  };
+}
+
+/**
+ * Reusable "record attendance" core — the full validation chain plus
+ * check-in / check-out decision in a single call. This is the function a
+ * future NGO manual-marking flow will also invoke, so it must not assume
+ * it is being called from a QR-specific request handler.
+ *
+ * Flow:
+ *   1. Role check (volunteer-only for QR; future callers can wrap this).
+ *   2. Event + token indexed lookup (400 INVALID_ATTENDANCE_CODE on miss).
+ *   3. Active window check (EVENT_NOT_STARTED / EVENT_WINDOW_CLOSED).
+ *   4. Project status check (published/active only).
+ *   5. Confirmed registration check (NOT_REGISTERED).
+ *   6. Attendance row lookup:
+ *        - none → insert check-in.
+ *        - check_in set, no check_out → update check_out + hours.
+ *        - check_out already set → 409 ALREADY_CHECKED_OUT.
+ *
+ * Race protection: the UNIQUE(volunteer_id, event_id) constraint backs the
+ * insert path — a 23505 maps to 409 ALREADY_CHECKED_IN.
+ */
+export async function recordAttendance(
+  identity: RequestIdentity,
+  input: ScanInput
+): Promise<ScanResult> {
+  if (identity.role !== "volunteer") {
+    throw new AuthorizationError("Only volunteers can record attendance");
+  }
+
+  const event = await loadEventByToken(input.event_id, input.token);
+
+  const now = new Date();
+  const nowMs = now.getTime();
+  if (nowMs < new Date(event.window_start).getTime()) {
+    throw new AppError("Attendance for this event has not opened yet", 400, "EVENT_NOT_STARTED");
+  }
+  if (nowMs > new Date(event.window_end).getTime()) {
+    throw new AppError("The attendance window for this event has closed", 400, "EVENT_WINDOW_CLOSED");
+  }
+
+  const project = await loadProjectRow(event.project_id);
+  if (!ATTENDANCE_PROJECT_STATUSES.includes(project.status)) {
+    throw new AppError("Attendance is not open for this project anymore", 400, "PROJECT_NOT_OPEN");
+  }
+
+  const registration = await findConfirmedRegistration(identity.domainId, event.project_id);
+  if (!registration) {
+    throw new AppError(
+      "You need a confirmed registration for this project before checking in",
+      400,
+      "NOT_REGISTERED"
+    );
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("event_id", event.event_id)
+    .eq("volunteer_id", identity.domainId)
+    .maybeSingle();
+  if (existingError) {
+    throw new AppError(`Failed to verify previous attendance: ${existingError.message}`, 500);
+  }
+
+  // No record yet → check in.
+  if (!existing) {
+    const checkInAt = now.toISOString();
+    const { data, error } = await supabase
+      .from("attendance")
+      .insert({
+        registration_id: registration.id,
+        volunteer_id: identity.domainId,
+        project_id: event.project_id,
+        event_id: event.event_id,
+        check_in: checkInAt,
+      })
+      .select("id, check_in")
+      .single();
+    if (error) {
+      if (error.code === "23505") {
+        throw new AppError("You have already checked in for this event", 409, "ALREADY_CHECKED_IN");
+      }
+      throw new AppError(`Failed to record check-in: ${error.message}`, 500);
+    }
+    return {
+      action: "checked-in",
+      attendance_id: data.id,
+      event_id: event.event_id,
+      check_in: data.check_in,
+      check_out: null,
+      hours: null,
+    };
+  }
+
+  // Record exists — determine check-out or already-checked-out.
+  const record = existing as AttendanceRow;
+  if (record.check_out) {
+    throw new AppError("You have already checked out for this event", 409, "ALREADY_CHECKED_OUT");
+  }
+  const checkInIso = record.check_in as string;
+  const checkOutAt = now.toISOString();
+  const hours = Math.round(((nowMs - new Date(checkInIso).getTime()) / 3_600_000) * 100) / 100;
+
+  const { data: updated, error: updateError } = await supabase
+    .from("attendance")
+    .update({ check_out: checkOutAt, hours })
+    .eq("id", record.id)
+    .select("id, check_in, check_out, hours")
+    .single();
+  if (updateError) {
+    throw new AppError(`Failed to record check-out: ${updateError.message}`, 500);
+  }
+
+  return {
+    action: "checked-out",
+    attendance_id: updated.id,
+    event_id: event.event_id,
     check_in: updated.check_in,
     check_out: updated.check_out,
     hours: updated.hours,

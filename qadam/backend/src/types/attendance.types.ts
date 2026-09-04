@@ -113,3 +113,28 @@ export interface CheckOutResult {
   check_out: string;
   hours: number;
 }
+
+/**
+ * Input for the unified scan endpoint - identical to AttendanceScanBody (the
+ * scanned event_id + token pair). Exported separately so downstream callers
+ * (NGO manual attendance marking) can pass a typed input without importing
+ * the validator module.
+ */
+export interface ScanInput {
+  event_id: string;
+  token: string;
+}
+
+/**
+ * Result of a unified scan: the server decides whether this was a check-in
+ * or a check-out based on the existing attendance row. The client renders
+ * `action` to show the right UI state without guessing.
+ */
+export interface ScanResult {
+  action: "checked-in" | "checked-out";
+  attendance_id: string;
+  event_id: string;
+  check_in: string;
+  check_out: string | null;
+  hours: number | null;
+}
