@@ -34,7 +34,7 @@ interface GeminiResponse {
     content?: {
       parts?: Array<{ text?: string }>;
     };
-  >>;
+  }>;
 }
 
 interface GeminiRequestBody {

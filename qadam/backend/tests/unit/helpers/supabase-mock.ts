@@ -49,6 +49,7 @@ export function createSupabaseMock(): SupabaseMockModule {
     builder.delete = chain;
     builder.eq = chain;
     builder.in = chain;
+    builder.not = chain;
     builder.order = chain;
     builder.range = chain;
     builder.single = () => Promise.resolve(take());

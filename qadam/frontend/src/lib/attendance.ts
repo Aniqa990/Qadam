@@ -2,6 +2,7 @@ import type {
   AttendanceEvent,
   AttendanceEventCreated,
   AttendanceEventQr,
+  AttendanceHistoryItem,
   AttendanceRecord,
   CheckInResult,
   CheckOutResult,
@@ -82,4 +83,13 @@ export function listAttendanceRecords(api: ApiListFetcher, params: AttendanceRec
   if (params.event_id) search.set("event_id", params.event_id);
   const qs = search.toString();
   return api<AttendanceRecord>(`/attendance${qs ? `?${qs}` : ""}`);
+}
+
+/**
+ * The caller's latest completed events (finished event + checked-out
+ * attendance), newest first, capped at 10 server-side. Read-only - history
+ * never writes attendance data.
+ */
+export function listAttendanceHistory(api: ApiFetcher): Promise<AttendanceHistoryItem[]> {
+  return api<AttendanceHistoryItem[]>("/attendance/history");
 }

@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import CopilotPanel from "@/components/CopilotPanel";
-import NgoNav from "@/components/NgoNav";
 import ProjectForm, { type ProjectFormHandle } from "@/components/ProjectForm";
 import { useApi } from "@/hooks/useApi";
 import { createProject } from "@/lib/projects";
@@ -19,7 +18,6 @@ export default function CreateProjectPage() {
 
   return (
     <>
-      <NgoNav />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-2xl font-bold">Create a new project</h1>
         <p className="mt-1 text-sm text-muted-foreground">

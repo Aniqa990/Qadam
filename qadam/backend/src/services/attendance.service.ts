@@ -6,10 +6,12 @@ import type {
   AttendanceEventQr,
   AttendanceEventRow,
   AttendanceEventSummary,
+  AttendanceHistoryRow,
   AttendanceRecordSummary,
   AttendanceRow,
   CheckInResult,
   CheckOutResult,
+  VolunteerAttendanceHistoryItem,
 } from "../types/attendance.types";
 import type {
   AttendanceScanBody,
@@ -41,6 +43,9 @@ import { AppError, AuthorizationError, NotFoundError } from "../utils/errors";
 
 /** Attendance events can only be created for projects in these statuses. */
 const ATTENDANCE_PROJECT_STATUSES: readonly ProjectStatus[] = ["published", "active"];
+
+/** The history view returns the volunteer's latest N completed events. */
+const HISTORY_LIMIT = 10;
 
 interface ListAttendanceResult {
   data: AttendanceRecordSummary[];
@@ -481,4 +486,92 @@ export async function listAttendanceRecords(
     limit,
     total: count ?? 0,
   };
+}
+
+/** Event columns the history view needs from attendance_tokens. */
+interface HistoryEvent {
+  event_id: string;
+  event_name: string | null;
+  event_date: string;
+  window_end: string;
+}
+
+/**
+ * GET /api/attendance/history - the volunteer's latest completed events, a
+ * read-only view over existing attendance data (no history table). A session
+ * enters history only once BOTH conditions hold:
+ *   - the event has finished: window_end is in the past. Upcoming and
+ *     still-running events never appear; events have no cancelled state (an
+ *     NGO "stopping" an event just ends its window sooner), so a past
+ *     window_end is exactly "finished".
+ *   - the volunteer's attendance is complete: check_out is set (check-in is
+ *     implied by the check-out flow), i.e. the row carries verified hours.
+ *     A check-in without check-out is unfinished and stays out of history.
+ *
+ * A later-cancelled registration or project never removes attendance that
+ * was already verified - attendance is the source of truth for participation
+ * (AGENTS.md). Latest HISTORY_LIMIT events are returned, newest first. Event
+ * details are stitched in a second query, same as listAttendanceRecords,
+ * because attendance has no FK to attendance_tokens (migration 005).
+ */
+export async function getVolunteerHistory(
+  identity: RequestIdentity
+): Promise<VolunteerAttendanceHistoryItem[]> {
+  if (identity.role !== "volunteer") {
+    throw new AuthorizationError("Only volunteer accounts can view their attendance history");
+  }
+
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*, project:projects(title, location_name, ngo:ngos(name))")
+    .eq("volunteer_id", identity.domainId)
+    .not("check_out", "is", null)
+    .order("check_out", { ascending: false });
+  if (error) {
+    throw new AppError(`Failed to load attendance history: ${error.message}`, 500);
+  }
+  const rows = (data ?? []) as unknown as AttendanceHistoryRow[];
+  if (rows.length === 0) return [];
+
+  const eventIds = [...new Set(rows.map((row) => row.event_id))];
+  const { data: events, error: eventsError } = await supabase
+    .from("attendance_tokens")
+    .select("event_id, event_name, event_date, window_end")
+    .in("event_id", eventIds);
+  if (eventsError) {
+    throw new AppError(`Failed to load attendance history: ${eventsError.message}`, 500);
+  }
+  const eventsById = new Map(
+    ((events ?? []) as HistoryEvent[]).map((event) => [event.event_id, event])
+  );
+
+  const now = Date.now();
+  const finished = rows.flatMap((row) => {
+    const event = eventsById.get(row.event_id);
+    if (!event || new Date(event.window_end).getTime() >= now) {
+      return []; // event not found or not finished yet - never history material
+    }
+    return [{ row, event }];
+  });
+
+  // Newest first: by when the event finished, check-out breaking exact ties.
+  finished.sort(
+    (a, b) =>
+      new Date(b.event.window_end).getTime() - new Date(a.event.window_end).getTime() ||
+      new Date(b.row.check_out ?? 0).getTime() - new Date(a.row.check_out ?? 0).getTime()
+  );
+
+  return finished.slice(0, HISTORY_LIMIT).map(({ row, event }) => ({
+    id: row.id,
+    project_id: row.project_id,
+    project_title: row.project?.title ?? "",
+    ngo_name: row.project?.ngo?.name ?? "",
+    event_id: row.event_id,
+    event_name: event.event_name,
+    event_date: event.event_date,
+    location_name: row.project?.location_name ?? null,
+    check_in: row.check_in ?? "",
+    check_out: row.check_out ?? "",
+    hours: row.hours ?? 0,
+  }));
 }

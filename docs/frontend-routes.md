@@ -26,6 +26,7 @@ The React application uses React Router with role-based routing. The app shell p
             <Route path="/volunteer/profile" />
             <Route path="/volunteer/projects" />
             <Route path="/volunteer/registrations" />
+            <Route path="/volunteer/history" />
             <Route path="/volunteer/impact" />
             <Route path="/volunteer/scan" />
           </Route>
@@ -58,11 +59,11 @@ The React application uses React Router with role-based routing. The app shell p
 
 ## Location & Map Behavior
 
-- **Volunteer onboarding/profile:** the volunteer selects their exact location with a map pin. Browser geolocation may be used as an optional starting point, but the volunteer can move the pin before saving. The backend stores `location_lat`, `location_lng`, and a cached `location_name` formatted as `"City, Country"`.
+- **Volunteer onboarding/profile:** the volunteer picks their location with `search → select result → map centers + pin updates → optional pin adjustment → save`. A compact place search input sits above the map; browser geolocation may be used as an optional starting point; the pin can always be dragged or re-dropped by clicking for precision. The backend stores `location_lat`, `location_lng`, and a cached `location_name` formatted as `"City, Country"`.
 - **NGO onboarding/profile:** no location picker and no NGO profile location is stored.
-- **NGO project creation:** the NGO must set the project location by dropping an exact pin on the map. The backend resolves the pin to `location_name = "City, Country"` and stores the exact coordinates.
-- **Published project viewing:** volunteers and NGOs can view the project's exact pin and city/country on a map.
-- **Map stack:** MapLibre GL + OpenFreeMap for map display/pinning; BigDataCloud Reverse Geocoding for the city/country label.
+- **NGO project creation/editing:** the NGO sets the project location the same way: search a place, select the result (the map flies there and the pin updates), optionally fine-tune the exact pin by dragging/clicking, then save. The backend resolves the final pin to `location_name = "City, Country"` and stores the exact coordinates.
+- **Published project viewing:** volunteers and NGOs can view the project's exact pin and city/country on a map (read-only map, no search box).
+- **Map stack:** MapLibre GL + OpenFreeMap for map display/pinning; BigDataCloud Reverse Geocoding for the city/country label; Nominatim (OpenStreetMap) place search behind `GET /api/geocoding/search` for the location search boxes.
 - **Distance matching:** the backend calculates Haversine distance between the volunteer's profile pin and the project's pin. Distance has the highest matching weight (`0.35`), followed by skills (`0.30`), interests (`0.15`), and embedding similarity (`0.20`).
 
 
@@ -168,6 +169,15 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Components**| `VolunteerRegistrationsPage`, `RegistrationCard` |
 | **API calls** | `GET /api/registrations`                      |
 | **Notes**     | List of all registrations with status. Can cancel confirmed registrations. |
+
+### `/volunteer/history` — My History
+
+| Property      | Value                                         |
+|---------------|-----------------------------------------------|
+| **Access**    | Volunteer only                                |
+| **Components**| `VolunteerHistoryPage`, `AttendanceHistoryCard` |
+| **API calls** | `GET /api/attendance/history`                 |
+| **Notes**     | The 10 most recent events the volunteer attended and completed (finished event + checked-out attendance), newest first. Clicking a card expands the event details — NGO, location, event date, check-in/check-out times, and the volunteer's verified hours contributed — plus a link to the project. Read-only: the history view never modifies attendance data. |
 
 ### `/volunteer/impact` — Personal Impact
 
