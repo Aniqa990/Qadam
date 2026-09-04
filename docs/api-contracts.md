@@ -752,6 +752,38 @@ List attendance records.
 
 ---
 
+### `GET /api/attendance/history`
+
+The authenticated volunteer's 10 most recent completed events, newest first — a read-only view over the existing `attendance` / `attendance_tokens` / `projects` / `ngos` data (no history table is maintained).
+
+**Auth:** Required — Volunteer only
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_title": "After-School Tutoring",
+      "ngo_name": "Education For All",
+      "event_id": "uuid",
+      "event_name": "Day 1 Morning Session",
+      "event_date": "2026-09-20",
+      "location_name": "Jeddah, Saudi Arabia",
+      "check_in": "2026-09-20T08:05:00Z",
+      "check_out": "2026-09-20T11:02:00Z",
+      "hours": 2.95
+    }
+  ]
+}
+```
+
+**Qualification:** An event appears only after it has finished (`window_end` in the past) AND the volunteer's attendance is complete (`check_out` set — verified hours). Upcoming, still-running, and unfinished (no check-out) sessions never appear. Attendance that was already verified stays in history even if the registration or project is later cancelled — attendance is the source of truth for participation.
+
+---
+
 ## Matching Module — `/api/matching`
 
 ### `GET /api/matching/volunteers/:projectId`
@@ -970,6 +1002,39 @@ Delete a document and all its chunks.
 ```json
 { "success": true, "data": { "message": "Document deleted" } }
 ```
+
+---
+
+## Geocoding Module — `/api/geocoding`
+
+Location support for the map pickers. Reverse geocoding (pin → `"City, Country"`) is not a standalone endpoint: it happens implicitly when a volunteer profile or project is saved with a pin, server-side via BigDataCloud (Nominatim fallback). This module only exposes forward geocoding (place search) used by the location search box.
+
+### `GET /api/geocoding/search`
+
+Search for places by free text. Used by the location pickers so users can search a place, select a result (map centers + pin updates), then optionally fine-tune the pin before saving.
+
+**Auth:** Required (any role — both volunteers and NGOs pick locations)
+
+**Query:** `?q=karachi` (2–100 chars after trim)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "label": "Karachi, Karachi District, Sindh, Pakistan",
+      "lat": 24.8607,
+      "lng": 67.0011
+    }
+  ]
+}
+```
+
+Suggestions are display-only hints — the selected coordinates become the pin, and `location_name` is still resolved server-side from the final pin on save. Provider failure returns `200` with an empty `data` array (graceful degradation to manual pin-dropping), never a 5xx.
+
+**Error cases:**
+- `400` — Missing, too short, or too long `q`
 
 ---
 

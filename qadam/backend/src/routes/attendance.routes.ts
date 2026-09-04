@@ -71,4 +71,9 @@ router.get(
   attendanceController.listRecords
 );
 
+// Volunteer history: read-only snapshot of the caller's latest completed
+// events (finished event + checked-out attendance). Scoped to the
+// authenticated volunteer in the service - no query params accepted.
+router.get("/history", requireRole("volunteer"), attendanceController.history);
+
 export default router;

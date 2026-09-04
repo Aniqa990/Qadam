@@ -5,6 +5,7 @@ import { errorMiddleware } from "./middleware/error.middleware";
 import { notFoundMiddleware } from "./middleware/not-found.middleware";
 import authRoutes from "./routes/auth.routes";
 import aiRoutes from "./routes/ai.routes";
+import geocodingRoutes from "./routes/geocoding.routes";
 import healthRoutes from "./routes/health.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import ngoRoutes from "./routes/ngo.routes";
@@ -12,7 +13,6 @@ import projectRoutes from "./routes/project.routes";
 import registrationRoutes from "./routes/registration.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import volunteerRoutes from "./routes/volunteer.routes";
-import aiRoutes from "./routes/ai.routes";
 
 /**
  * Express app configuration. Route modules for volunteer/ngo/etc. are
@@ -45,6 +45,7 @@ export function createApp(): Express {
   app.use("/api/ngos", ngoRoutes);
   app.use("/api/attendance", attendanceRoutes);
   app.use("/api/knowledge", knowledgeRoutes);
+  app.use("/api/geocoding", geocodingRoutes);
 
   // Future route modules mount here, e.g.:
   // app.use("/api/matching", matchingRoutes);

@@ -64,7 +64,7 @@
 | Validation| Zod (API inputs and AI outputs)                       |
 | QR        | `qrcode` (generation), `html5-qrcode` (scanning)      |
 | Charts    | Recharts                                              |
-| Maps      | MapLibre GL + OpenFreeMap; BigDataCloud reverse geocoding |
+| Maps      | MapLibre GL + OpenFreeMap; BigDataCloud reverse geocoding (Nominatim fallback); Nominatim place search (`/api/geocoding/search`) |
 
 ## Module Boundaries
 
@@ -87,6 +87,7 @@ backend/
 │   │   ├── registration.controller.ts
 │   │   ├── matching.controller.ts
 │   │   ├── attendance.controller.ts
+│   │   ├── geocoding.controller.ts
 │   │   ├── ai.controller.ts
 │   │   ├── knowledge.controller.ts
 │   │   └── impact.controller.ts
@@ -99,6 +100,7 @@ backend/
 │   │   ├── registration.service.ts
 │   │   ├── matching.service.ts
 │   │   ├── attendance.service.ts
+│   │   ├── geocoding.service.ts
 │   │   ├── knowledge.service.ts
 │   │   ├── impact.service.ts
 │   │   └── ai/
@@ -117,6 +119,7 @@ backend/
 │   │   ├── registration.routes.ts
 │   │   ├── matching.routes.ts
 │   │   ├── attendance.routes.ts
+│   │   ├── geocoding.routes.ts
 │   │   ├── ai.routes.ts
 │   │   ├── knowledge.routes.ts
 │   │   └── impact.routes.ts
@@ -134,6 +137,7 @@ backend/
 │   │   ├── project.validator.ts
 │   │   ├── registration.validator.ts
 │   │   ├── attendance.validator.ts
+│   │   ├── geocoding.validator.ts
 │   │   ├── ai.validator.ts
 │   │   └── knowledge.validator.ts
 │   │
