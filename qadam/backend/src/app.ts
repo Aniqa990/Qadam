@@ -5,6 +5,7 @@ import { errorMiddleware } from "./middleware/error.middleware";
 import { notFoundMiddleware } from "./middleware/not-found.middleware";
 import authRoutes from "./routes/auth.routes";
 import aiRoutes from "./routes/ai.routes";
+import geocodingRoutes from "./routes/geocoding.routes";
 import healthRoutes from "./routes/health.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import matchingRoutes from "./routes/matching.routes";
@@ -41,11 +42,11 @@ export function createApp(): Express {
   app.use("/api/auth", authRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/registrations", registrationRoutes);
+  
   app.use("/api/volunteers", volunteerRoutes);
   app.use("/api/ngos", ngoRoutes);
   app.use("/api/attendance", attendanceRoutes);
   app.use("/api/knowledge", knowledgeRoutes);
-  app.use("/api/matching", matchingRoutes);
 
   app.use("/api/ai", aiRoutes);
   // app.use("/api/impact", impactRoutes);

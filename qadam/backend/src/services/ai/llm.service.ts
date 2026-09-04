@@ -22,26 +22,42 @@ export interface GenerateTextParams {
   maxTokens?: number;
 }
 
+/** Errors that should trigger a fallback to the secondary provider. */
+const FALLBACK_CODES = new Set(["TIMEOUT", "NETWORK_ERROR", "MALFORMED_RESPONSE", "EMPTY_RESPONSE", "RATE_LIMITED"]);
+
 /**
  * Generate text, trying Gemini first and falling back to Qwen on any
- * AIProviderError. Non-AI errors (e.g. coding bugs) propagate normally.
+ * valid fallback-triggering AIProviderError. Non-fallback errors propagate normally.
  */
 export async function generateText(params: GenerateTextParams): Promise<string> {
   try {
     const text = await gemini.generateText(params);
-    logger.info("LLM response served by Gemini");
+    logger.info("LLM provider served request", { provider: "gemini" });
     return text;
   } catch (err) {
-    if (err instanceof AIProviderError) {
-      logger.warn("Gemini failed, falling back to Qwen", {
-        code: err.code,
-        message: err.message,
-      });
-
-      const text = await qwen.generateText(params);
-      logger.info("LLM response served by Qwen (fallback)");
-      return text;
+    if (!(err instanceof AIProviderError) || !FALLBACK_CODES.has(err.code)) {
+      // Non-fallback or non-AI error: propagate immediately.
+      throw err;
     }
-    throw err;
+
+    logger.warn("Gemini failed - falling back to Qwen", {
+      geminiCode: err.code,
+      message: err.message,
+    });
+
+    try {
+      const text = await qwen.generateText(params);
+      logger.info("LLM provider served request", { provider: "qwen", fallbackFrom: "gemini" });
+      return text;
+    } catch (qwenErr) {
+      // If Qwen also fails, log the Qwen error and surface it so the caller knows both failed.
+      if (qwenErr instanceof AIProviderError) {
+        logger.error("Qwen fallback also failed", {
+          qwenCode: qwenErr.code,
+          message: qwenErr.message,
+        });
+      }
+      throw qwenErr;
+    }
   }
 }

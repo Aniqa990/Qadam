@@ -24,6 +24,7 @@ import {
   checkOut,
   createAttendanceEvent,
   getEventQr,
+  getVolunteerHistory,
   stopAttendanceEvent,
 } from "../../src/services/attendance.service";
 import { AuthorizationError } from "../../src/utils/errors";
@@ -435,5 +436,187 @@ describe("stopAttendanceEvent", () => {
 
     expect(result).toEqual({ event_id: "evt-1", window_end: "2026-09-20T09:00:00Z" });
     expect(mock.calls.updates["attendance_tokens"]).toBeUndefined();
+  });
+});
+
+// -- getVolunteerHistory -------------------------------------------------------
+
+describe("getVolunteerHistory", () => {
+  /** Completed attendance row with the project/ngo join history reads. */
+  function historyAttendanceRow(overrides: Record<string, unknown> = {}) {
+    return attendanceRow({
+      check_in: "2026-09-19T08:05:00Z",
+      check_out: "2026-09-19T11:00:00Z",
+      hours: 2.92,
+      project: {
+        title: "After-School Tutoring",
+        location_name: "Jeddah, Saudi Arabia",
+        ngo: { name: "Education For All" },
+      },
+      ...overrides,
+    });
+  }
+
+  /** Event whose window ended before NOW (2026-09-20T10:00:00Z). */
+  function finishedEventRow(overrides: Record<string, unknown> = {}) {
+    return eventRow({
+      event_id: "evt-done",
+      event_name: "Day 1 Morning Session",
+      event_date: "2026-09-19",
+      window_start: "2026-09-19T08:00:00Z",
+      window_end: "2026-09-19T12:00:00Z",
+      ...overrides,
+    });
+  }
+
+  it("rejects NGO callers with 403 before any data access", async () => {
+    await expect(getVolunteerHistory(ngoIdentity())).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it("returns finished completed events newest first with event, project, and NGO details", async () => {
+    mock.queue("attendance", [
+      {
+        data: [
+          historyAttendanceRow({
+            id: "att-old",
+            event_id: "evt-old",
+            check_in: "2026-09-18T08:05:00Z",
+            check_out: "2026-09-18T11:00:00Z",
+          }),
+          historyAttendanceRow({ id: "att-new", event_id: "evt-new" }),
+        ],
+        error: null,
+      },
+    ]);
+    mock.queue("attendance_tokens", [
+      {
+        data: [
+          finishedEventRow({
+            event_id: "evt-old",
+            event_date: "2026-09-18",
+            window_start: "2026-09-18T08:00:00Z",
+            window_end: "2026-09-18T12:00:00Z",
+          }),
+          finishedEventRow({ event_id: "evt-new", event_name: "Day 2 Session" }),
+        ],
+        error: null,
+      },
+    ]);
+
+    const result = await getVolunteerHistory(volunteerIdentity());
+
+    expect(result).toEqual([
+      {
+        id: "att-new",
+        project_id: "proj-1",
+        project_title: "After-School Tutoring",
+        ngo_name: "Education For All",
+        event_id: "evt-new",
+        event_name: "Day 2 Session",
+        event_date: "2026-09-19",
+        location_name: "Jeddah, Saudi Arabia",
+        check_in: "2026-09-19T08:05:00Z",
+        check_out: "2026-09-19T11:00:00Z",
+        hours: 2.92,
+      },
+      {
+        id: "att-old",
+        project_id: "proj-1",
+        project_title: "After-School Tutoring",
+        ngo_name: "Education For All",
+        event_id: "evt-old",
+        event_name: "Day 1 Morning Session",
+        event_date: "2026-09-18",
+        location_name: "Jeddah, Saudi Arabia",
+        check_in: "2026-09-18T08:05:00Z",
+        check_out: "2026-09-18T11:00:00Z",
+        hours: 2.92,
+      },
+    ]);
+  });
+
+  it("excludes events that have not finished and attendance without a matching event", async () => {
+    mock.queue("attendance", [
+      {
+        data: [
+          // Completed attendance, but the event window is still open (12:00 > now 10:00).
+          historyAttendanceRow({ id: "att-running", event_id: "evt-running" }),
+          // Completed attendance whose event row is missing entirely.
+          historyAttendanceRow({ id: "att-orphan", event_id: "evt-orphan" }),
+          // Finished event + completed attendance - the only qualifying row.
+          historyAttendanceRow({ id: "att-done", event_id: "evt-done" }),
+        ],
+        error: null,
+      },
+    ]);
+    mock.queue("attendance_tokens", [
+      {
+        data: [
+          finishedEventRow({
+            event_id: "evt-running",
+            event_date: "2026-09-20",
+            window_start: "2026-09-20T08:00:00Z",
+            window_end: "2026-09-20T12:00:00Z",
+          }),
+          finishedEventRow({ event_id: "evt-done" }),
+        ],
+        error: null,
+      },
+    ]);
+
+    const result = await getVolunteerHistory(volunteerIdentity());
+
+    expect(result.map((item) => item.id)).toEqual(["att-done"]);
+  });
+
+  it("caps the history at the 10 most recent finished events", async () => {
+    const days = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+    mock.queue("attendance", [
+      {
+        data: days.map((day) =>
+          historyAttendanceRow({
+            id: `att-${day}`,
+            event_id: `evt-${day}`,
+            check_in: `2026-09-${day}T08:00:00Z`,
+            check_out: `2026-09-${day}T11:00:00Z`,
+          })
+        ),
+        error: null,
+      },
+    ]);
+    mock.queue("attendance_tokens", [
+      {
+        data: days.map((day) =>
+          finishedEventRow({
+            event_id: `evt-${day}`,
+            event_name: `Day ${Number(day)}`,
+            event_date: `2026-09-${day}`,
+            window_start: `2026-09-${day}T08:00:00Z`,
+            window_end: `2026-09-${day}T12:00:00Z`,
+          })
+        ),
+        error: null,
+      },
+    ]);
+
+    const result = await getVolunteerHistory(volunteerIdentity());
+
+    expect(result).toHaveLength(10);
+    expect(result[0].event_id).toBe("evt-12"); // newest first
+    expect(result[9].event_id).toBe("evt-03"); // the 10 most recent of 12
+  });
+
+  it("returns an empty list when the volunteer has no completed attendance", async () => {
+    mock.queue("attendance", [{ data: [], error: null }]);
+
+    const result = await getVolunteerHistory(volunteerIdentity());
+
+    expect(result).toEqual([]);
+  });
+
+  it("surfaces a data-access failure as a 500", async () => {
+    mock.queue("attendance", [{ data: null, error: { message: "boom" } }]);
+
+    await expect(getVolunteerHistory(volunteerIdentity())).rejects.toMatchObject({ statusCode: 500 });
   });
 });

@@ -98,3 +98,12 @@ export async function listRecords(req: Request, res: Response, next: NextFunctio
     next(err);
   }
 }
+
+export async function history(req: Request, res: Response, next: NextFunction) {
+  try {
+    const items = await attendanceService.getVolunteerHistory(identity(req));
+    return sendSuccess(res, items);
+  } catch (err) {
+    next(err);
+  }
+}

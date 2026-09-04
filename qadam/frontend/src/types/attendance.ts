@@ -40,6 +40,26 @@ export interface AttendanceRecord {
   hours: number | null;
 }
 
+/**
+ * One entry of the volunteer's history (GET /api/attendance/history): a
+ * finished event the volunteer attended and completed, with the verified
+ * hours from the attendance record. Mirrors the backend's
+ * VolunteerAttendanceHistoryItem - keep both in sync.
+ */
+export interface AttendanceHistoryItem {
+  id: string;
+  project_id: string;
+  project_title: string;
+  ngo_name: string;
+  event_id: string;
+  event_name: string | null;
+  event_date: string;
+  location_name: string | null;
+  check_in: string;
+  check_out: string;
+  hours: number;
+}
+
 export interface CheckInResult {
   attendance_id: string;
   event_id: string;

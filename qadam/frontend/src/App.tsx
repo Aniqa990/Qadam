@@ -18,6 +18,7 @@ import NotFoundPage from "./pages/shared/NotFoundPage";
 import ProjectDetailPage from "./pages/shared/ProjectDetailPage";
 import QrScannerPage from "./pages/volunteer/QrScannerPage";
 import VolunteerOnboardingPage from "./pages/volunteer/VolunteerOnboardingPage";
+import VolunteerHistoryPage from "./pages/volunteer/VolunteerHistoryPage";
 import VolunteerProfilePage from "./pages/volunteer/VolunteerProfilePage";
 import VolunteerProjectsPage from "./pages/volunteer/VolunteerProjectsPage";
 import VolunteerRegistrationsPage from "./pages/volunteer/VolunteerRegistrationsPage";
@@ -59,6 +60,7 @@ export default function App() {
         <Route element={<VolunteerGuard />}>
           <Route path="/volunteer/projects" element={<VolunteerProjectsPage />} />
           <Route path="/volunteer/registrations" element={<VolunteerRegistrationsPage />} />
+          <Route path="/volunteer/history" element={<VolunteerHistoryPage />} />
           <Route path="/volunteer/impact" element={<VolunteerImpactPage />} />
           <Route path="/volunteer/scan" element={<QrScannerPage />} />
           <Route path="/volunteer/profile" element={<VolunteerProfilePage />} />

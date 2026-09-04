@@ -1,5 +1,7 @@
 import { aiConfig } from "../../config/ai";
+import { httpJson } from "../../lib/http";
 import { AIProviderError } from "../../utils/errors";
+import { logger } from "../../utils/logger";
 
 /**
  * Qwen (Alibaba Cloud DashScope) text-generation wrapper
@@ -10,11 +12,13 @@ import { AIProviderError } from "../../utils/errors";
  * interface as gemini.service.ts so llm.service.ts can swap providers
  * transparently.
  *
- * Interface:
- *   generateText({ prompt, systemInstruction?, temperature?, maxTokens? }) → string
+ * DashScope OpenAI-compatible endpoint:
+ *   POST https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions
+ *   Authorization: Bearer <DASHSCOPE_API_KEY>
  */
 
 const QWEN_TIMEOUT_MS = 30_000;
+const DASHSCOPE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 // -- Types ---------------------------------------------------------------------
 
@@ -25,6 +29,14 @@ export interface GenerateTextParams {
   maxTokens?: number;
 }
 
+/** DashScope OpenAI-compatible response shape (subset we actually read). */
+interface DashScopeResponse {
+  choices?: Array<{
+    message?: { content?: string };
+  }>;
+}
+
+
 // -- Public API ----------------------------------------------------------------
 
 /**
@@ -32,7 +44,9 @@ export interface GenerateTextParams {
  * timeout, rate limit, malformed response, empty response, or network error.
  */
 export async function generateText(params: GenerateTextParams): Promise<string> {
-  if (!params.prompt.trim()) {
+  const { prompt, systemInstruction, temperature = 0.7, maxTokens = 2048 } = params;
+
+  if (!prompt.trim()) {
     throw new AIProviderError(
       "EMPTY_RESPONSE",
       "qwen",
@@ -40,79 +54,55 @@ export async function generateText(params: GenerateTextParams): Promise<string> 
     );
   }
 
-  const url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
+  const { apiKey, model } = aiConfig.qwen;
 
-  const messages: { role: string; content: string }[] = [];
-  if (params.systemInstruction) {
-    messages.push({ role: "system", content: params.systemInstruction });
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemInstruction) {
+    messages.push({ role: "system", content: systemInstruction });
   }
-  messages.push({ role: "user", content: params.prompt });
+  messages.push({ role: "user", content: prompt });
 
-  const body: Record<string, unknown> = {
-    model: aiConfig.qwen.model,
+  const body = {
+    model,
     messages,
+    temperature,
+    max_tokens: maxTokens,
   };
-  if (params.temperature != null) body.temperature = params.temperature;
-  if (params.maxTokens != null) body.max_tokens = params.maxTokens;
 
-  let response: Response;
+  let res: DashScopeResponse;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), QWEN_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${aiConfig.qwen.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
+    res = await httpJson<DashScopeResponse>(DASHSCOPE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      timeoutMs: QWEN_TIMEOUT_MS,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("aborted") || message.toLowerCase().includes("abort")) {
+      throw new AIProviderError("TIMEOUT", "qwen", `Qwen request timed out after ${QWEN_TIMEOUT_MS}ms`);
     }
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new AIProviderError("TIMEOUT", "qwen", "Qwen request timed out");
+    if (message.includes("HTTP 429")) {
+      throw new AIProviderError("RATE_LIMITED", "qwen", message);
     }
-    throw new AIProviderError(
-      "NETWORK_ERROR",
-      "qwen",
-      err instanceof Error ? err.message : "Unknown network error"
-    );
+    logger.warn("Qwen network/HTTP error", { message });
+    throw new AIProviderError("NETWORK_ERROR", "qwen", message);
   }
 
-  if (response.status === 429) {
-    throw new AIProviderError("RATE_LIMITED", "qwen", "Qwen rate limit exceeded");
-  }
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new AIProviderError(
-      "MALFORMED_RESPONSE",
-      "qwen",
-      `Qwen returned ${response.status}: ${errorText.slice(0, 300)}`
-    );
-  }
-
-  let result: unknown;
-  try {
-    result = await response.json();
-  } catch {
-    throw new AIProviderError(
-      "MALFORMED_RESPONSE",
-      "qwen",
-      "Failed to parse Qwen JSON response"
-    );
-  }
-
-  const text = extractQwenText(result);
+  const text = extractQwenText(res);
   if (!text) {
     throw new AIProviderError(
-      "EMPTY_RESPONSE",
+      "MALFORMED_RESPONSE",
       "qwen",
-      "Qwen returned an empty response"
+      "Qwen response missing choices[0].message.content or returned empty"
     );
+  }
+
+  if (text.trim().length === 0) {
+    throw new AIProviderError("EMPTY_RESPONSE", "qwen", "Qwen returned an empty string");
   }
 
   return text;
@@ -120,12 +110,9 @@ export async function generateText(params: GenerateTextParams): Promise<string> 
 
 // -- Helpers -------------------------------------------------------------------
 
-function extractQwenText(result: unknown): string | null {
+function extractQwenText(result: DashScopeResponse): string | null {
   try {
-    const obj = result as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = obj?.choices?.[0]?.message?.content;
+    const text = result?.choices?.[0]?.message?.content;
     return typeof text === "string" && text.trim() ? text.trim() : null;
   } catch {
     return null;

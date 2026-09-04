@@ -1,5 +1,7 @@
 import { aiConfig } from "../../config/ai";
+import { httpJson } from "../../lib/http";
 import { AIProviderError } from "../../utils/errors";
+import { logger } from "../../utils/logger";
 
 /**
  * Gemini text-generation wrapper (ai-architecture.md "gemini.service.ts").
@@ -26,9 +28,18 @@ export interface GenerateTextParams {
   maxTokens?: number;
 }
 
+/** Gemini REST response shape (subset we actually read). */
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+}
+
 interface GeminiRequestBody {
   contents: { role: string; parts: { text: string }[] }[];
-  systemInstruction?: { parts: { text: string }[] };
+  system_instruction?: { parts: { text: string }[] };
   generationConfig?: { temperature?: number; maxOutputTokens?: number };
 }
 
@@ -39,7 +50,9 @@ interface GeminiRequestBody {
  * rate limit, malformed response, empty response, or network error.
  */
 export async function generateText(params: GenerateTextParams): Promise<string> {
-  if (!params.prompt.trim()) {
+  const { prompt, systemInstruction, temperature = 0.7, maxTokens = 2048 } = params;
+
+  if (!prompt.trim()) {
     throw new AIProviderError(
       "EMPTY_RESPONSE",
       "gemini",
@@ -47,77 +60,52 @@ export async function generateText(params: GenerateTextParams): Promise<string> 
     );
   }
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${aiConfig.gemini.model}:generateContent` +
-    `?key=${aiConfig.gemini.apiKey}`;
+  const { apiKey, model } = aiConfig.gemini;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const body: GeminiRequestBody = {
-    contents: [{ role: "user", parts: [{ text: params.prompt }] }],
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature,
+      maxOutputTokens: maxTokens,
+    },
   };
-  if (params.systemInstruction) {
-    body.systemInstruction = { parts: [{ text: params.systemInstruction }] };
-  }
-  if (params.temperature != null || params.maxTokens != null) {
-    body.generationConfig = {};
-    if (params.temperature != null) body.generationConfig.temperature = params.temperature;
-    if (params.maxTokens != null) body.generationConfig.maxOutputTokens = params.maxTokens;
+
+  if (systemInstruction) {
+    body.system_instruction = { parts: [{ text: systemInstruction }] };
   }
 
-  let response: Response;
+  let res: GeminiResponse;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
+    res = await httpJson<GeminiResponse>(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      timeoutMs: GEMINI_TIMEOUT_MS,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("aborted") || message.toLowerCase().includes("abort")) {
+      throw new AIProviderError("TIMEOUT", "gemini", `Gemini request timed out after ${GEMINI_TIMEOUT_MS}ms`);
     }
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new AIProviderError("TIMEOUT", "gemini", "Gemini request timed out");
+    if (message.includes("HTTP 429")) {
+      throw new AIProviderError("RATE_LIMITED", "gemini", message);
     }
-    throw new AIProviderError(
-      "NETWORK_ERROR",
-      "gemini",
-      err instanceof Error ? err.message : "Unknown network error"
-    );
+    logger.warn("Gemini network/HTTP error", { message });
+    throw new AIProviderError("NETWORK_ERROR", "gemini", message);
   }
 
-  if (response.status === 429) {
-    throw new AIProviderError("RATE_LIMITED", "gemini", "Gemini rate limit exceeded");
-  }
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new AIProviderError(
-      "MALFORMED_RESPONSE",
-      "gemini",
-      `Gemini returned ${response.status}: ${errorText.slice(0, 300)}`
-    );
-  }
-
-  let result: unknown;
-  try {
-    result = await response.json();
-  } catch {
-    throw new AIProviderError(
-      "MALFORMED_RESPONSE",
-      "gemini",
-      "Failed to parse Gemini JSON response"
-    );
-  }
-
-  const text = extractGeminiText(result);
+  const text = extractGeminiText(res);
   if (!text) {
     throw new AIProviderError(
-      "EMPTY_RESPONSE",
+      "MALFORMED_RESPONSE",
       "gemini",
-      "Gemini returned an empty response"
+      "Gemini response missing candidates[0].content.parts[0].text or returned empty"
     );
+  }
+
+  if (text.trim().length === 0) {
+    throw new AIProviderError("EMPTY_RESPONSE", "gemini", "Gemini returned an empty string");
   }
 
   return text;
@@ -125,12 +113,9 @@ export async function generateText(params: GenerateTextParams): Promise<string> 
 
 // -- Helpers -------------------------------------------------------------------
 
-function extractGeminiText(result: unknown): string | null {
+function extractGeminiText(result: GeminiResponse): string | null {
   try {
-    const obj = result as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const text = obj?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
     return typeof text === "string" && text.trim() ? text.trim() : null;
   } catch {
     return null;
