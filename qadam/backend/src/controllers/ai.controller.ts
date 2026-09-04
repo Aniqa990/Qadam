@@ -20,7 +20,8 @@ export async function copilotDraft(req: Request, res: Response, next: NextFuncti
     return sendSuccess(res, draft);
   } catch (err) {
     return next(err);
-  }}
+  }
+}
 
 /**
  * POST /api/ai/assistant/chat — thin controller for the Global Knowledge
