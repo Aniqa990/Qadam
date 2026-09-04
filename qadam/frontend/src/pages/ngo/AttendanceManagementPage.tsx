@@ -66,7 +66,7 @@ export default function AttendanceManagementPage() {
   });
 
   const attendanceOpen =
-    project != null && (project.status === "published" || project.status === "active");
+    project != null && (project.status === "upcoming" || project.status === "active");
 
   const loadEvents = useCallback(() => {
     if (!id) return;

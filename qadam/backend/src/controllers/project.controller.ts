@@ -91,8 +91,9 @@ async function transition(req: Request, res: Response, next: NextFunction, targe
   }
 }
 
+/** Publishing a draft lists it publicly as "Upcoming" (volunteer-visible). */
 export function publishProject(req: Request, res: Response, next: NextFunction) {
-  return transition(req, res, next, "published");
+  return transition(req, res, next, "upcoming");
 }
 
 export function activateProject(req: Request, res: Response, next: NextFunction) {

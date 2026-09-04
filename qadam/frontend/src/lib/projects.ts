@@ -37,6 +37,10 @@ export interface ProjectListParams {
   skill?: string;
   /** Substring match against the cached "City, Country" label. */
   location?: string;
+  /** Proximity filter: projects within this many km of the volunteer's
+   * profile pin (the backend resolves the pin server-side; ignored when
+   * the profile has no coordinates). */
+  near_km?: number;
   /** Date-overlap window (YYYY-MM-DD): project runs at any point within it. */
   date_from?: string;
   date_to?: string;
@@ -70,6 +74,7 @@ export function listProjects(api: ApiListFetcher, params: ProjectListParams = {}
   if (params.search) search.set("search", params.search);
   if (params.skill) search.set("skill", params.skill.toLowerCase());
   if (params.location) search.set("location", params.location);
+  if (params.near_km) search.set("near_km", String(params.near_km));
   if (params.date_from) search.set("date_from", params.date_from);
   if (params.date_to) search.set("date_to", params.date_to);
   const qs = search.toString();

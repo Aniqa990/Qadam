@@ -2,7 +2,7 @@
  * Frontend mirrors of the projects API DTOs (api-contracts.md "Projects
  * Module" / backend types/project.types.ts). Keep in sync with the backend.
  */
-export type ProjectStatus = "draft" | "published" | "active" | "completed" | "cancelled";
+export type ProjectStatus = "draft" | "upcoming" | "active" | "completed" | "cancelled";
 
 export interface ProjectEligibility {
   min_age?: number;
@@ -25,6 +25,9 @@ export interface ProjectSummary {
   start_date: string;
   end_date: string;
   location_name: string | null;
+  /** Haversine km from the caller's profile pin; present only while a
+   * near_km proximity filter is active. */
+  distance_km?: number | null;
 }
 
 /** Full shape returned by GET /api/projects/:id. */

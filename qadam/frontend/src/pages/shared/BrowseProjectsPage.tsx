@@ -2,10 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import ProjectCard from "@/components/ProjectCard";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
+import { getVolunteerProfile } from "@/lib/profiles";
 import { listProjects, PROJECT_CATEGORIES } from "@/lib/projects";
+import { cn } from "@/lib/utils";
 import type { PaginationInfo, ProjectSummary } from "@/types/project";
 
 const PAGE_SIZE = 12;
+
+/** Radius choices (km) for the "near me" proximity filter. */
+const NEAR_RADIUS_OPTIONS = [5, 10, 25, 50, 100] as const;
 
 /** Filter form state - applied to the API only on submit. */
 interface FilterValues {
@@ -15,6 +21,8 @@ interface FilterValues {
   location: string;
   date_from: string;
   date_to: string;
+  near_enabled: boolean;
+  near_km: string;
 }
 
 const EMPTY_FILTERS: FilterValues = {
@@ -24,11 +32,14 @@ const EMPTY_FILTERS: FilterValues = {
   location: "",
   date_from: "",
   date_to: "",
+  near_enabled: false,
+  near_km: "25",
 };
 
-/** True when any filter has a non-empty value. */
+/** True when any filter has a non-default value. */
 function hasFilters(filters: FilterValues): boolean {
-  return Object.values(filters).some((value) => value.trim() !== "");
+  const { near_enabled, ...rest } = filters;
+  return near_enabled || Object.values(rest).some((value) => value.trim() !== "");
 }
 
 const inputClass =
@@ -36,12 +47,14 @@ const inputClass =
 
 /**
  * frontend-routes.md "/projects" - browse projects. The backend scopes by
- * role: volunteers see published/active/completed opportunities; NGOs see
+ * role: volunteers see upcoming/active/completed opportunities; NGOs see
  * their own projects. Deterministic filters only (cause, skill, date
- * window, location) - semantic matching arrives with the matching phase.
+ * window, location text, "near me" proximity) - semantic matching lives in
+ * the matching endpoints.
  */
 export default function BrowseProjectsPage() {
-  const { apiList } = useApi();
+  const { api, apiList } = useApi();
+  const { role } = useAuth();
 
   const [draft, setDraft] = useState<FilterValues>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterValues>(EMPTY_FILTERS);
@@ -49,6 +62,32 @@ export default function BrowseProjectsPage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Whether the volunteer can use the proximity filter: null while the
+   * profile resolves, false when the profile has no pinned location. The
+   * backend derives the actual radius anchor from the profile pin, so this
+   * is only used to enable/disable the control.
+   */
+  const [hasPinnedLocation, setHasPinnedLocation] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (role !== "volunteer") return;
+    let cancelled = false;
+    getVolunteerProfile(api)
+      .then((profile) => {
+        if (!cancelled) {
+          setHasPinnedLocation(
+            profile.location_lat !== null && profile.location_lng !== null
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHasPinnedLocation(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, role]);
 
   const load = useCallback(() => {
     setError(null);
@@ -61,6 +100,7 @@ export default function BrowseProjectsPage() {
       location: applied.location.trim() || undefined,
       date_from: applied.date_from || undefined,
       date_to: applied.date_to || undefined,
+      near_km: applied.near_enabled ? Number(applied.near_km) : undefined,
     })
       .then((result) => {
         setProjects(result.data);
@@ -161,6 +201,56 @@ export default function BrowseProjectsPage() {
                 className={inputClass}
               />
             </label>
+
+            {/* "Near me" proximity filter - volunteers only; the backend
+                anchors the radius on the volunteer's profile pin. */}
+            {role === "volunteer" && (
+              <div className="space-y-1 md:col-span-2">
+                <span className="text-sm font-medium">Distance</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm",
+                      hasPinnedLocation ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={draft.near_enabled}
+                      disabled={!hasPinnedLocation}
+                      onChange={(e) =>
+                        setDraft({ ...draft, near_enabled: e.target.checked })
+                      }
+                    />
+                    Near me
+                  </label>
+                  <select
+                    aria-label="Search radius in kilometres"
+                    className={cn(inputClass, "w-auto")}
+                    value={draft.near_km}
+                    disabled={!draft.near_enabled || !hasPinnedLocation}
+                    onChange={(e) => setDraft({ ...draft, near_km: e.target.value })}
+                  >
+                    {NEAR_RADIUS_OPTIONS.map((km) => (
+                      <option key={km} value={String(km)}>
+                        within {km} km
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {hasPinnedLocation === null && (
+                  <p className="text-xs text-muted-foreground">
+                    Checking your profile location…
+                  </p>
+                )}
+                {hasPinnedLocation === false && (
+                  <p className="text-xs text-muted-foreground">
+                    Set your location in your profile to find projects near you.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <button
@@ -188,7 +278,7 @@ export default function BrowseProjectsPage() {
               hasFilters(applied) ? (
                 <EmptyState
                   title="No projects match your filters"
-                  description="Try widening the date range or clearing some filters."
+                  description="Try widening the radius or date range, or clearing some filters."
                   action={
                     <button
                       type="button"

@@ -26,7 +26,7 @@ export default function ProjectRegistrationPanel({
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const projectOpen = project.status === "published" || project.status === "active";
+  const projectOpen = project.status === "upcoming" || project.status === "active";
   const atCapacity = project.registered_count >= project.capacity;
   const confirmed = registration?.status === "confirmed";
 

@@ -63,7 +63,7 @@ export default function NgoDashboardPage() {
               <StatCard label="Total projects" value={total} />
               <StatCard
                 label="Live"
-                value={projects.filter((p) => p.status === "published" || p.status === "active").length}
+                value={projects.filter((p) => p.status === "upcoming" || p.status === "active").length}
               />
               <StatCard label="Drafts" value={projects.filter((p) => p.status === "draft").length} />
               <StatCard
@@ -99,7 +99,7 @@ export default function NgoDashboardPage() {
                   {projects.slice(0, 4).map((project) => (
                     <div key={project.id} className="space-y-2">
                       <ProjectCard project={project} />
-                      {(project.status === "published" || project.status === "active") && (
+                      {(project.status === "upcoming" || project.status === "active") && (
                         <Link
                           to={`/ngo/matching/${project.id}`}
                           className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

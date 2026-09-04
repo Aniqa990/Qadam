@@ -51,7 +51,6 @@ function toProfile(row: VolunteerRow): VolunteerProfile {
     phone: row.phone,
     skills: row.skills ?? [],
     interests: row.interests ?? [],
-    experience: row.experience,
     location_lat: row.location_lat,
     location_lng: row.location_lng,
     location_name: row.location_name,
@@ -83,7 +82,6 @@ export async function updateProfile(
   if (input.phone !== undefined) update.phone = input.phone;
   if (input.skills !== undefined) update.skills = input.skills;
   if (input.interests !== undefined) update.interests = input.interests;
-  if (input.experience !== undefined) update.experience = input.experience;
   if (input.age !== undefined) update.age = input.age;
 
   const latChanged = input.location_lat !== undefined && input.location_lat !== row.location_lat;
@@ -114,12 +112,11 @@ export async function updateProfile(
     throw new AppError(`Failed to update volunteer profile: ${error.message}`, 500);
   }
 
-  // Embedding input is skills + interests + experience (database-schema.md
-  // "volunteer_embeddings") — regenerate whenever any of them changed.
+  // Embedding input is skills + interests (database-schema.md
+  // "volunteer_embeddings") — regenerate whenever either changed.
   const embeddingContentChanged =
     (input.skills !== undefined && JSON.stringify(input.skills) !== JSON.stringify(row.skills ?? [])) ||
-    (input.interests !== undefined && JSON.stringify(input.interests) !== JSON.stringify(row.interests ?? [])) ||
-    (input.experience !== undefined && input.experience !== row.experience);
+    (input.interests !== undefined && JSON.stringify(input.interests) !== JSON.stringify(row.interests ?? []));
   if (embeddingContentChanged) {
     triggerVolunteerEmbedding(row.id);
   }

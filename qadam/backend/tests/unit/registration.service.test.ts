@@ -48,7 +48,7 @@ function projectRow(overrides: Record<string, unknown> = {}) {
     id: "proj-1",
     ngo_id: "ngo-1",
     title: "After-School Tutoring",
-    status: "published" as ProjectStatus,
+    status: "upcoming" as ProjectStatus,
     capacity: 10,
     eligibility: {},
     ...overrides,
@@ -219,7 +219,7 @@ describe("cancelRegistration", () => {
       volunteer: { full_name: "Jane Doe" },
       project: {
         title: "After-School Tutoring",
-        status: "published",
+        status: "upcoming",
         start_date: "2026-09-15",
         end_date: "2026-12-15",
         location_name: "Jeddah, Saudi Arabia",

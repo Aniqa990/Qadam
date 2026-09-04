@@ -62,9 +62,9 @@ The React application uses React Router with role-based routing. The app shell p
 - **Volunteer onboarding/profile:** the volunteer picks their location with `search → select result → map centers + pin updates → optional pin adjustment → save`. A compact place search input sits above the map; browser geolocation may be used as an optional starting point; the pin can always be dragged or re-dropped by clicking for precision. The backend stores `location_lat`, `location_lng`, and a cached `location_name` formatted as `"City, Country"`.
 - **NGO onboarding/profile:** no location picker and no NGO profile location is stored.
 - **NGO project creation/editing:** the NGO sets the project location the same way: search a place, select the result (the map flies there and the pin updates), optionally fine-tune the exact pin by dragging/clicking, then save. The backend resolves the final pin to `location_name = "City, Country"` and stores the exact coordinates.
-- **Published project viewing:** volunteers and NGOs can view the project's exact pin and city/country on a map (read-only map, no search box).
+- **Published project viewing:** volunteers and NGOs can view any non-draft project's exact pin and city/country on a map (read-only map, no search box).
 - **Map stack:** MapLibre GL + OpenFreeMap for map display/pinning; BigDataCloud Reverse Geocoding for the city/country label; Nominatim (OpenStreetMap) place search behind `GET /api/geocoding/search` for the location search boxes.
-- **Distance matching:** the backend calculates Haversine distance between the volunteer's profile pin and the project's pin. Distance has the highest matching weight (`0.35`), followed by skills (`0.30`), interests (`0.15`), and embedding similarity (`0.20`).
+- **Distance matching:** the backend calculates Haversine distance between the volunteer's profile pin and the project's pin. Distance has the highest matching weight (`0.50`), followed by skills (`0.30`) and embedding similarity (`0.20`).
 
 
 The `ProtectedLayout` component wraps all authenticated routes and provides:
@@ -119,7 +119,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | Any authenticated user                        |
 | **Components**| `ProjectsPage`, `ProjectCard`, `ProjectFilters`, `Pagination` |
 | **API calls** | `GET /api/projects?page=&limit=&category=&search=&status=` |
-| **Notes**     | Volunteers see published/active projects. NGOs see their own projects + public ones. |
+| **Notes**     | Volunteers see upcoming/active projects. NGOs see their own projects + public ones. |
 
 ### `/projects/:id` — Project Detail
 
@@ -150,7 +150,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | Volunteer only (requires onboarding complete) |
 | **Components**| `VolunteerProfilePage`, `ProfileForm`         |
 | **API calls** | `GET /api/volunteers/profile`, `PUT /api/volunteers/profile` |
-| **Notes**     | Edit skills, interests, experience, and the exact profile location pin. Changes to skills/interests/experience trigger embedding regeneration; location never enters the embedding. |
+| **Notes**     | Edit skills, interests, and the exact profile location pin. Changes to skills/interests trigger embedding regeneration; location never enters the embedding. |
 
 ### `/volunteer/projects` — My Projects
 
@@ -253,7 +253,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | NGO only (must own the project)               |
 | **Components**| `EditProjectPage`, `ProjectForm`, **`CopilotPanel`**, `ProjectStatusControls` |
 | **API calls** | `GET /api/projects/:id`, `PUT /api/projects/:id`, `POST /api/ai/copilot/draft`, `POST /api/projects/:id/publish`, `POST /api/projects/:id/activate`, `POST /api/projects/:id/complete`, `POST /api/projects/:id/cancel` |
-| **Notes**     | **Copilot panel also available here** to help refine the project. Status transition buttons shown based on current status. |
+| **Notes**     | **Copilot panel also available here** to help refine the project. The edit form renders only while the project is `draft`/`upcoming` — the backend rejects detail edits once `active`. Status transition buttons shown based on current status. |
 
 ### `/ngo/projects/:id/registrations` — Project Registrations
 
@@ -280,7 +280,7 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | **Access**    | NGO only (must own the project)               |
 | **Components**| `MatchingPage`, `MatchCard`, `ScoreBreakdown`, `MatchFilters` |
 | **API calls** | `GET /api/matching/volunteers/:projectId?limit=20` |
-| **Notes**     | Ranked list of volunteer matches with composite score and per-factor breakdown. Each card shows matched skills, interests, distance, and embedding similarity. Distance is the highest-weight factor (0.35); embedding is 0.20. |
+| **Notes**     | Ranked list of volunteer matches with composite score and per-factor breakdown. Each card shows matched skills, distance, and semantic similarity. Distance is the highest-weight factor (0.50); semantic similarity is 0.20. |
 
 ### `/ngo/knowledge` — Knowledge Base Management
 

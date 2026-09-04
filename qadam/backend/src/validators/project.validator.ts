@@ -10,7 +10,7 @@ import { z } from "zod";
  * owner comes from req.identity and status only changes via transition
  * endpoints.
  */
-export const PROJECT_STATUSES = ["draft", "published", "active", "completed", "cancelled"] as const;
+export const PROJECT_STATUSES = ["draft", "upcoming", "active", "completed", "cancelled"] as const;
 
 const skillSchema = z
   .string()
@@ -96,6 +96,13 @@ export const listProjectsQuerySchema = z
     skill: skillSchema.optional(),
     /** Substring match against the cached "City, Country" label. */
     location: z.string().trim().min(1).max(100).optional(),
+    /**
+     * Proximity filter (km): keep only projects within this radius of the
+     * volunteer's profile pin, sorted nearest-first. Volunteer-only; NGOs
+     * have no profile location and a volunteer without a pin falls back to
+     * the unfiltered listing.
+     */
+    near_km: z.coerce.number().int().min(1).max(500).optional(),
     /** Overlap window: a project matches when it runs any time within it. */
     date_from: z.string().date("date_from must be a YYYY-MM-DD date").optional(),
     date_to: z.string().date("date_to must be a YYYY-MM-DD date").optional(),

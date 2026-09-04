@@ -13,8 +13,8 @@ import type { VolunteerMatch } from "@/types/matching";
  * frontend-routes.md "/ngo/matching/:projectId" — ranked list of volunteer
  * matches for a specific project. NGO-only; the backend verifies project
  * ownership. Displays composite score + per-factor breakdown for each
- * volunteer (AGENTS.md "Matching" weights: distance 0.35, skills 0.30,
- * embedding 0.20, interests 0.15).
+ * volunteer (AGENTS.md "Matching" weights: distance 0.50, skills 0.30,
+ * embedding 0.20).
  */
 export default function MatchingPage() {
   const { projectId } = useParams<{ projectId: string }>();

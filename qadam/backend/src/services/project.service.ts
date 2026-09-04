@@ -4,6 +4,7 @@ import type { CreateProjectBody, ListProjectsQuery, UpdateProjectBody } from "..
 import { supabase } from "../lib/supabase";
 import { reverseGeocode } from "./geocoding.service";
 import { regenerateProjectEmbedding } from "./ai/embedding.service";
+import { haversineDistanceKm } from "../utils/distance";
 import { logger } from "../utils/logger";
 import {
   AppError,
@@ -24,15 +25,19 @@ import {
  */
 
 /** Draft projects are invisible to volunteers (and other NGOs). */
-const VOLUNTEER_VISIBLE_STATUSES: readonly ProjectStatus[] = ["published", "active", "completed"];
+const VOLUNTEER_VISIBLE_STATUSES: readonly ProjectStatus[] = ["upcoming", "active", "completed"];
 
-/** Terminal states: no edits, no transitions, no new registrations. */
-const TERMINAL_STATUSES: readonly ProjectStatus[] = ["completed", "cancelled"];
+/**
+ * Statuses in which a project's details can still be edited (mutation guard
+ * for PUT /api/projects/:id). Once a project is active - or past "upcoming"
+ * - its details are frozen; only lifecycle transitions remain.
+ */
+const EDITABLE_STATUSES: readonly ProjectStatus[] = ["draft", "upcoming"];
 
 /** Allowed lifecycle transitions - anything else is a 409 conflict. */
 const STATUS_TRANSITIONS: Record<ProjectStatus, readonly ProjectStatus[]> = {
-  draft: ["published"],
-  published: ["active", "cancelled"],
+  draft: ["upcoming"],
+  upcoming: ["active", "cancelled"],
   active: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -93,7 +98,11 @@ async function fetchConfirmedCounts(projectIds: string[]): Promise<Map<string, n
   return counts;
 }
 
-function toSummary(row: ProjectRow, registeredCount: number): ProjectSummary {
+function toSummary(
+  row: ProjectRow,
+  registeredCount: number,
+  distanceKm?: number | null
+): ProjectSummary {
   return {
     id: row.id,
     ngo_id: row.ngo_id,
@@ -109,6 +118,7 @@ function toSummary(row: ProjectRow, registeredCount: number): ProjectSummary {
     start_date: row.start_date,
     end_date: row.end_date,
     location_name: row.location_name,
+    distance_km: distanceKm ?? null,
   };
 }
 
@@ -146,8 +156,45 @@ async function loadProjectForOwner(identity: RequestIdentity, projectId: string)
 }
 
 /**
+ * Loads the volunteer's pinned profile location for the "near you"
+ * filter. Returns null when the profile has no coordinates - proximity
+ * is simply inapplicable then, never an error.
+ */
+async function loadVolunteerLocation(
+  volunteerId: string
+): Promise<{ lat: number; lng: number } | null> {
+  const { data, error } = await supabase
+    .from("volunteers")
+    .select("location_lat, location_lng")
+    .eq("id", volunteerId)
+    .maybeSingle();
+  if (error) {
+    throw new AppError(`Failed to load volunteer profile: ${error.message}`, 500);
+  }
+  const row = data as { location_lat: number | null; location_lng: number | null } | null;
+  if (!row || row.location_lat === null || row.location_lng === null) return null;
+  return { lat: row.location_lat, lng: row.location_lng };
+}
+
+/**
+ * Haversine km from the volunteer's pin to the project pin, rounded to one
+ * decimal for display. Null when the project has no coordinates.
+ */
+function distanceToProjectKm(
+  volunteerLoc: { lat: number; lng: number },
+  row: Pick<ProjectRow, "location_lat" | "location_lng">
+): number | null {
+  if (row.location_lat === null || row.location_lng === null) return null;
+  const km = haversineDistanceKm(volunteerLoc, {
+    lat: row.location_lat,
+    lng: row.location_lng,
+  });
+  return Math.round(km * 10) / 10;
+}
+
+/**
  * GET /api/projects - role-scoped listing. NGOs see all of their own projects
- * (drafts included); volunteers only ever see published/active/completed.
+ * (drafts included); volunteers only ever see upcoming/active/completed.
  */
 export async function listProjects(
   identity: RequestIdentity,
@@ -197,6 +244,47 @@ export async function listProjects(
   const searchTerm = query.search?.replace(/[,()"]/g, " ").trim();
   if (searchTerm) {
     dbQuery = dbQuery.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+  }
+
+  // "Near you" proximity filter: the radius anchor is the volunteer's own
+  // profile pin, resolved server-side - coordinates are never accepted from
+  // the client. NGOs have no profile location, so the filter is ignored for
+  // other callers; a volunteer without a pin simply gets the unfiltered
+  // listing (distance is unknowable, not an error).
+  const nearKm = query.near_km;
+  const volunteerLoc =
+    nearKm !== undefined && identity.role === "volunteer"
+      ? await loadVolunteerLocation(identity.domainId)
+      : null;
+
+  if (nearKm !== undefined && volunteerLoc !== null) {
+    // Proximity path: fetch every row matching the other filters, compute
+    // haversine distances in Node, keep in-radius projects, sort
+    // nearest-first, then paginate in memory so `total` reflects the
+    // filtered count. Fine at MVP scale (tens of projects).
+    const { data, error } = await dbQuery.order("created_at", { ascending: false });
+    if (error) {
+      throw new AppError(`Failed to list projects: ${error.message}`, 500);
+    }
+    const candidates = (data ?? []) as unknown as ProjectRow[];
+    const near = candidates
+      .map((row) => ({ row, km: distanceToProjectKm(volunteerLoc, row) }))
+      // A project without a pin is not verifiably "within X km" - it is
+      // excluded from the proximity view only (still listed when the
+      // filter is off).
+      .filter((x): x is { row: ProjectRow; km: number } => x.km !== null && x.km <= nearKm)
+      .sort((a, b) => a.km - b.km);
+
+    const pageRows = near.slice((page - 1) * limit, page * limit);
+    const confirmedCounts = await fetchConfirmedCounts(pageRows.map((x) => x.row.id));
+    return {
+      data: pageRows.map((x) =>
+        toSummary(x.row, confirmedCounts.get(x.row.id) ?? 0, x.km)
+      ),
+      page,
+      limit,
+      total: near.length,
+    };
   }
 
   const { data, error, count } = await dbQuery
@@ -302,8 +390,13 @@ export async function updateProject(
 ): Promise<{ id: string; status: ProjectStatus }> {
   const row = await loadProjectForOwner(identity, projectId);
 
-  if (TERMINAL_STATUSES.includes(row.status)) {
-    throw new ConflictError("Completed or cancelled projects can no longer be edited");
+  // Mutation guard: a project that is active (or past "upcoming") accepts no
+  // further detail edits - the request fails with 400 rather than being
+  // silently ignored.
+  if (!EDITABLE_STATUSES.includes(row.status)) {
+    throw new ValidationError(
+      `Projects in '${row.status}' status can no longer be edited - only draft or upcoming projects are editable`
+    );
   }
 
   // Cross-field rules are checked against the MERGED record (a patch may only
@@ -420,7 +513,7 @@ export async function transitionProject(
   if (target === "cancelled") {
     await cancelConfirmedRegistrations(projectId);
   }
-  if (target === "published") {
+  if (target === "upcoming") {
     triggerEmbeddingRegeneration(projectId);
   }
 

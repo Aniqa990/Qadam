@@ -248,7 +248,6 @@ Execute operation
   * `age`
   * `skills`
   * `interests`
-  * `experience`
   * `location_name`
   * `location_lat`
   * `location_lng`
@@ -329,7 +328,6 @@ backend/src/
 
   * personal information
   * skills/interests
-  * experience
   * exact map location
   * review
 * `VolunteerProfilePage`
@@ -547,11 +545,10 @@ matching.service.ts
 2. Apply hard constraints
 3. Calculate geographic distance
 4. Calculate skills score
-5. Calculate interests score
-6. Calculate embedding similarity
-7. Calculate weighted composite score
-8. Rank candidates
-9. Return top-N + score breakdown + explanations
+5. Calculate embedding similarity
+6. Calculate weighted composite score
+7. Rank candidates
+8. Return top-N + score breakdown + explanations
 ```
 
 ### Matching weights
@@ -560,10 +557,9 @@ Distance has the highest individual weight:
 
 | Factor               |   Weight |
 | -------------------- | -------: |
-| Distance             |     0.35 |
+| Distance             |     0.50 |
 | Skills               |     0.30 |
 | Embedding similarity |     0.20 |
-| Interests            |     0.15 |
 | **Total**            | **1.00** |
 
 Distance is calculated using the volunteer's exact profile coordinates and the project's exact coordinates.
@@ -571,18 +567,17 @@ Distance is calculated using the volunteer's exact profile coordinates and the p
 Example:
 
 ```text
-distance_score =
-  max(0, 1 - distance_km / DISTANCE_MAX_KM)
+distance_score = 1 / (1 + distance_km)
 ```
 
-The exact maximum distance is a configurable application constant.
+If either party has no coordinates, the distance term is dropped and the remaining weights are renormalized proportionally.
 
 ### Embedding rules
 
 **Volunteer embedding input**
 
 ```text
-skills + interests + experience
+skills + interests
 ```
 
 **Project embedding input**
@@ -1068,7 +1063,7 @@ AI narrative generation:
 * Phase 3 depends on Phase 2.
 * Phase 4 depends on Phase 3.
 * Phase 5 depends on Phases 3 and 4 because matching requires volunteer and project data.
-* Phase 6 depends on Phases 4 and 5 because attendance requires published projects and valid volunteer registrations.
+* Phase 6 depends on Phases 4 and 5 because attendance requires upcoming/active projects and valid volunteer registrations.
 * Phase 7 depends on Phases 3 and 4 for role-aware AI, project Copilot, and NGO knowledge ownership. It can be developed in parallel with Phases 5 and 6 once those foundations exist.
 * Phase 8 depends on Phases 5 and 6 for authoritative registration and attendance data, and on Phase 7 for the AI narrative path.
 
@@ -1180,7 +1175,7 @@ The implementation must remain aligned with the architecture and API/database co
 
 10. Embedding inputs must never contain location or dynamic eligibility/filter data.
 
-11. Distance must have the highest matching weight at `0.35`.
+11. Distance must have the highest matching weight at `0.50`.
 
 12. Gemini is the primary LLM provider; Qwen/DashScope is the fallback.
 

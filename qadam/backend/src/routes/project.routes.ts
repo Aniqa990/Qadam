@@ -15,8 +15,9 @@ const router = Router();
 
 /**
  * Every project route needs the full auth pipeline - reads are role-scoped
- * (NGO sees own projects incl. drafts, volunteers see published only) and
- * writes are NGO-only plus ownership-checked in the service.
+ * (NGO sees own projects incl. drafts, volunteers see upcoming/active/
+ * completed only) and writes are NGO-only plus ownership-checked in the
+ * service.
  */
 router.use(authMiddleware, resolveUserMiddleware);
 

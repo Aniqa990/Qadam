@@ -21,7 +21,7 @@ const ACTIONS_BY_STATUS: Record<ProjectStatus, StatusAction[]> = {
   draft: [
     { action: "publish", label: "Publish", className: "bg-primary text-primary-foreground hover:opacity-90" },
   ],
-  published: [
+  upcoming: [
     { action: "activate", label: "Activate", className: "bg-primary text-primary-foreground hover:opacity-90" },
     {
       action: "cancel",
@@ -45,9 +45,10 @@ const ACTIONS_BY_STATUS: Record<ProjectStatus, StatusAction[]> = {
 
 /**
  * frontend-routes.md "/ngo/projects/:id/edit" - edit a project and manage its
- * lifecycle. Terminal projects (completed/cancelled) are read-only, matching
- * the backend's immutability rule. The CopilotPanel sits beside the form for
- * non-terminal projects.
+ * lifecycle. Only draft and upcoming projects are editable - the backend
+ * rejects detail edits once a project is active (or completed/cancelled),
+ * so the form is replaced by a read-only note for those statuses. The
+ * CopilotPanel sits beside the form for editable projects only.
  */
 export default function EditProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -133,6 +134,9 @@ export default function EditProjectPage() {
   }
 
   const terminal = project.status === "completed" || project.status === "cancelled";
+  // Mirrors the backend mutation guard: PUT /api/projects/:id only accepts
+  // draft and upcoming projects.
+  const editable = project.status === "draft" || project.status === "upcoming";
   const actions = ACTIONS_BY_STATUS[project.status];
 
   return (
@@ -188,9 +192,11 @@ export default function EditProjectPage() {
                 </button>
               )}
               <span className="text-xs text-muted-foreground">
-                {project.status === "draft" && "Publishing makes the project visible to volunteers."}
-                {project.status === "published" && "Activating marks the project as underway."}
-                {project.status === "active" && "Completing closes the project permanently."}
+                {project.status === "draft" &&
+                  "Publishing lists the project as Upcoming and makes it visible to volunteers."}
+                {project.status === "upcoming" && "Activating marks the project as underway."}
+                {project.status === "active" &&
+                  "Details are locked while active. Completing closes the project permanently."}
               </span>
             </div>
           )}
@@ -201,10 +207,12 @@ export default function EditProjectPage() {
           )}
         </section>
 
-        {terminal ? (
+        {!editable ? (
           <div className="rounded-lg border p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              View the project as volunteers saw it on its{" "}
+              {project.status === "active"
+                ? "This project is active — its details are locked. View it on its "
+                : "View the project as volunteers saw it on its "}
               <Link to={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
                 detail page
               </Link>

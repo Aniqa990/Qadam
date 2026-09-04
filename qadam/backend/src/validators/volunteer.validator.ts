@@ -20,7 +20,6 @@ const volunteerProfileFields = {
   phone: z.string().trim().min(1).max(30).nullish(),
   skills: z.array(tagSchema).max(30, "A profile can list at most 30 skills"),
   interests: z.array(tagSchema).max(30, "A profile can list at most 30 interests"),
-  experience: z.string().trim().max(2000).nullish(),
   /** DB CHECK: volunteers.age IS NULL OR age BETWEEN 15 AND 100. */
   age: z.number().int().min(15).max(100).nullish(),
   location_lat: z.number().min(-90).max(90),

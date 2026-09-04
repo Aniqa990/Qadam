@@ -32,7 +32,7 @@ import {
  */
 
 /** Projects in these statuses accept new registrations. */
-const REGISTRABLE_STATUSES: readonly ProjectStatus[] = ["published", "active"];
+const REGISTRABLE_STATUSES: readonly ProjectStatus[] = ["upcoming", "active"];
 
 /** Joined select shared by every registrations query in this module. */
 const REGISTRATION_SELECT =
