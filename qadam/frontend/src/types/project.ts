@@ -25,6 +25,9 @@ export interface ProjectSummary {
   start_date: string;
   end_date: string;
   location_name: string | null;
+  /** Haversine km from the caller's profile pin; present only while a
+   * near_km proximity filter is active. */
+  distance_km?: number | null;
 }
 
 /** Full shape returned by GET /api/projects/:id. */

@@ -50,10 +50,14 @@ export default function ProjectCard({ project }: { project: ProjectSummary }) {
             <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
             {formatDateRange(project.start_date, project.end_date)}
           </span>
-          {project.location_name && (
+          {(project.distance_km != null || project.location_name) && (
             <span className="inline-flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              {project.location_name}
+              {project.distance_km != null
+                ? `${project.distance_km} km away${
+                    project.location_name ? ` · ${project.location_name}` : ""
+                  }`
+                : project.location_name}
             </span>
           )}
         </div>

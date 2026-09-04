@@ -58,6 +58,9 @@ export interface ProjectSummary {
   start_date: string;
   end_date: string;
   location_name: string | null;
+  /** Haversine km from the caller's profile pin; populated only while a
+   * near_km proximity filter is active, null otherwise. */
+  distance_km: number | null;
 }
 
 /** Full detail shape per api-contracts.md `GET /api/projects/:id`. */

@@ -277,7 +277,9 @@ List projects. Scope depends on caller role:
 
 **Auth:** Required (any role)
 
-**Query:** `?page=1&limit=20&status=active&category=education&search=youth`
+**Query:** `?page=1&limit=20&status=active&category=education&search=youth&near_km=25`
+
+Optional `near_km` (volunteer only): keep only projects within the given km of the volunteer's profile pin, sorted nearest-first. Ignored for NGO callers and when the volunteer profile has no coordinates. While active, each summary also carries `distance_km` (haversine km from the volunteer's pin; `null` otherwise).
 
 **Response (200):** Paginated list of project summaries.
 
@@ -299,7 +301,8 @@ List projects. Scope depends on caller role:
       "status": "active",
       "start_date": "2026-09-15",
       "end_date": "2026-12-15",
-      "location_name": "Jeddah, Saudi Arabia"
+      "location_name": "Jeddah, Saudi Arabia",
+      "distance_km": 12.3
     }
   ],
   "pagination": { "page": 1, "limit": 20, "total": 3, "totalPages": 1 }
