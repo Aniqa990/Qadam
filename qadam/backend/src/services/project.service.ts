@@ -3,7 +3,7 @@ import type { ProjectDetail, ProjectRow, ProjectStatus, ProjectSummary } from ".
 import type { CreateProjectBody, ListProjectsQuery, UpdateProjectBody } from "../validators/project.validator";
 import { supabase } from "../lib/supabase";
 import { reverseGeocode } from "./geocoding.service";
-import { regenerateProjectEmbedding } from "./ai/embedding.service";
+import { regenerateProjectEmbedding, regenerateVolunteerEmbedding } from "./ai/embedding.service";
 import { haversineDistanceKm } from "../utils/distance";
 import { logger } from "../utils/logger";
 import {
@@ -42,6 +42,12 @@ const STATUS_TRANSITIONS: Record<ProjectStatus, readonly ProjectStatus[]> = {
   completed: [],
   cancelled: [],
 };
+
+/**
+ * Maximum number of lines kept in a volunteer's history_summary column.
+ * When appending would push past this cap, the oldest entries are dropped.
+ */
+const HISTORY_SUMMARY_CAP = 15;
 
 interface ListResult {
   data: ProjectSummary[];
@@ -513,6 +519,9 @@ export async function transitionProject(
   if (target === "cancelled") {
     await cancelConfirmedRegistrations(projectId);
   }
+  if (target === "completed") {
+    await appendHistorySummaries(row);
+  }
   if (target === "upcoming") {
     triggerEmbeddingRegeneration(projectId);
   }
@@ -536,6 +545,94 @@ async function cancelConfirmedRegistrations(projectId: string): Promise<void> {
     logger.error("Failed to cancel registrations for cancelled project", {
       projectId,
       error: error.message,
+    });
+  }
+}
+
+/**
+ * Best-effort: for every volunteer with checked-out attendance on this
+ * project, append a one-line summary to their volunteers.history_summary
+ * column. Runs fire-and-forget inside the project-completion transition —
+ * a failure here is logged but never fails the project status change.
+ *
+ * Entry format: "Completed: <title> (<category>, skills: a, b, c)"
+ * Capped at HISTORY_SUMMARY_CAP lines; oldest entries are dropped first.
+ */
+async function appendHistorySummaries(project: ProjectRow): Promise<void> {
+  try {
+    // Distinct volunteers who checked out of at least one session.
+    const { data: rows, error: attError } = await supabase
+      .from("attendance")
+      .select("volunteer_id")
+      .eq("project_id", project.id)
+      .not("check_out", "is", null);
+    if (attError || !rows || rows.length === 0) {
+      if (attError) {
+        logger.warn("history_summary: failed to query attendance", {
+          projectId: project.id,
+          error: attError.message,
+        });
+      }
+      return;
+    }
+
+    const volunteerIds = [...new Set((rows as { volunteer_id: string }[]).map((r) => r.volunteer_id))];
+
+    const skillsLabel = project.required_skills.length > 0
+      ? project.required_skills.join(", ")
+      : "general";
+    const entry = `Completed: ${project.title} (${project.category}, skills: ${skillsLabel})`;
+
+    // Fetch current history_summary for every affected volunteer in one
+    // query — individual updates follow (bounded by volunteer count, not
+    // attendance row count, so a multi-session project stays cheap).
+    const { data: volunteers, error: volError } = await supabase
+      .from("volunteers")
+      .select("id, history_summary")
+      .in("id", volunteerIds);
+    if (volError || !volunteers) {
+      logger.warn("history_summary: failed to load volunteers", {
+        projectId: project.id,
+        error: volError?.message,
+      });
+      return;
+    }
+
+    for (const vol of volunteers as { id: string; history_summary: string | null }[]) {
+      const existing = vol.history_summary ? vol.history_summary.split("\n") : [];
+      const updated = [...existing, entry];
+      // Drop oldest entries when over the cap.
+      while (updated.length > HISTORY_SUMMARY_CAP) updated.shift();
+
+      const { error: updateError } = await supabase
+        .from("volunteers")
+        .update({ history_summary: updated.join("\n") })
+        .eq("id", vol.id);
+      if (updateError) {
+        logger.warn("history_summary: failed to update volunteer", {
+          volunteerId: vol.id,
+          projectId: project.id,
+          error: updateError.message,
+        });
+      } else {
+        // Fire-and-forget: embedding regeneration must never fail or
+        // delay the project-completion response. The content_hash
+        // comparison inside regenerateVolunteerEmbedding ensures the
+        // embedding is only regenerated when the text actually changed.
+        regenerateVolunteerEmbedding(vol.id).catch((err) => {
+          logger.error("Volunteer embedding regeneration failed after history update", {
+            volunteerId: vol.id,
+            projectId: project.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      }
+    }
+  } catch (err) {
+    // Catch-all: no unhandled exception from a best-effort path.
+    logger.error("history_summary: unexpected failure", {
+      projectId: project.id,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 }

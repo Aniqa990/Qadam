@@ -45,7 +45,7 @@ Clerk (external identity)
 ```sql
 CREATE TYPE user_role AS ENUM ('volunteer', 'ngo');
 CREATE TYPE project_status AS ENUM ('draft', 'upcoming', 'active', 'completed', 'cancelled');
-CREATE TYPE registration_status AS ENUM ('confirmed', 'cancelled');
+CREATE TYPE registration_status AS ENUM ('confirmed', 'cancelled', 'completed');
 CREATE TYPE document_status AS ENUM ('uploaded', 'processing', 'ready', 'failed');
 ```
 
@@ -69,6 +69,7 @@ Extended profile for volunteer users. Links 1:1 to a Clerk identity via `auth_us
 | `location_name`  | `TEXT`           |                                      | Format: `"City, Country"` (e.g. `"Karachi, Pakistan"`) — resolved via BigDataCloud reverse geocoding when the pin is dropped |
 | `age`  | `INTEGER`        | CHECK (`age >= 15 AND age <= 100`)  | Direct integer age, used as-is for eligibility checks (no DOB math) |
 | `onboarding_complete` | `BOOLEAN`  | NOT NULL, DEFAULT `false`           | Gates access to features      |
+| `history_summary` | `TEXT`        | DEFAULT `NULL`                       | Append-only, newline-separated entries added on project completion. Format: `"Completed: <title> (<category>, skills: ...)"`. Capped at 15 entries (oldest dropped). Written best-effort; never fails the project-completion transition. |
 | `created_at`     | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                               |
 | `updated_at`     | `TIMESTAMPTZ`    | NOT NULL, DEFAULT `now()`           |                               |
 

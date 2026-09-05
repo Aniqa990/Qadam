@@ -64,6 +64,20 @@ router.post(
   attendanceController.checkOut
 );
 
+/**
+ * POST /api/attendance/scan - unified check-in / check-out endpoint. The
+ * server inspects the existing attendance row and decides which action to
+ * take, so the client only ever sends the scanned (event_id, token) pair.
+ * The core logic in recordAttendance() is reusable - a later NGO manual
+ * attendance flow will call the same function from a different controller.
+ */
+router.post(
+  "/scan",
+  requireRole("volunteer"),
+  validate(attendanceScanSchema),
+  attendanceController.scan
+);
+
 // Both roles list attendance records (volunteers: own; NGOs: own projects).
 router.get(
   "/",

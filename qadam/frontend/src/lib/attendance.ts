@@ -6,6 +6,7 @@ import type {
   AttendanceRecord,
   CheckInResult,
   CheckOutResult,
+  ScanResult,
 } from "@/types/attendance";
 import type { ApiFetcher, ApiListFetcher } from "./projects";
 
@@ -70,6 +71,22 @@ export function checkOut(
   scan: { event_id: string; token: string }
 ): Promise<CheckOutResult> {
   return api<CheckOutResult>("/attendance/check-out", {
+    method: "POST",
+    body: JSON.stringify(scan),
+  });
+}
+
+/**
+ * POST /api/attendance/scan - unified check-in/check-out endpoint. The
+ * server inspects the existing attendance row and returns `action` telling
+ * the caller which state transition happened, so the frontend doesn't need
+ * to guess or catch ALREADY_CHECKED_IN to drive a fallback check-out.
+ */
+export function recordAttendance(
+  api: ApiFetcher,
+  scan: { event_id: string; token: string }
+): Promise<ScanResult> {
+  return api<ScanResult>("/attendance/scan", {
     method: "POST",
     body: JSON.stringify(scan),
   });

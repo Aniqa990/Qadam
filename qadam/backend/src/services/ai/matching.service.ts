@@ -333,16 +333,45 @@ async function fetchEmbeddingSimilarity(
  * Returns an empty map on any failure — recommendation still works with
  * deterministic components (embedding score defaults to 0).
  */
+// async function fetchProjectEmbeddingSimilarity(
+//   volunteerEmbedding: string,
+//   matchCount: number
+// ): Promise<Map<string, number>> {
+//   console.log("🔥🔥🔥 MATCHING FIX ACTIVE 🔥🔥");
+//   try {
+//     const { data, error } = await supabase.rpc("match_projects", {
+//       query_embedding: volunteerEmbedding,
+//       match_count: 1000,
+//       match_threshold: 0.01,
+//     });
+//     if (error) {
+//       logger.warn("Project embedding similarity lookup failed", {
+//         error: error.message,
+//       });
+//       return new Map();
+//     }
+//     const rows = (data ?? []) as { project_id: string; similarity: number }[];
+//     return new Map(rows.map((r) => [r.project_id, r.similarity]));
+//   } catch {
+//     logger.warn("Project embedding similarity lookup threw unexpectedly");
+//     return new Map();
+//   }
+// }
+
+// -- Public API ----------------------------------------------------------------
 async function fetchProjectEmbeddingSimilarity(
   volunteerEmbedding: string,
   matchCount: number
 ): Promise<Map<string, number>> {
+  // console.log("🔥🔥🔥 MATCHING FIX ACTIVE 🔥🔥🔥");
   try {
     const { data, error } = await supabase.rpc("match_projects", {
       query_embedding: volunteerEmbedding,
-      match_count: matchCount,
+      match_count: 1000,
       match_threshold: 0.01,
     });
+    // console.log("RPC ERROR:", error);
+    // console.log("RPC DATA:", JSON.stringify(data));
     if (error) {
       logger.warn("Project embedding similarity lookup failed", {
         error: error.message,
@@ -351,14 +380,12 @@ async function fetchProjectEmbeddingSimilarity(
     }
     const rows = (data ?? []) as { project_id: string; similarity: number }[];
     return new Map(rows.map((r) => [r.project_id, r.similarity]));
-  } catch {
+  } catch (err) {
+    console.log("RPC THREW:", err);
     logger.warn("Project embedding similarity lookup threw unexpectedly");
     return new Map();
   }
 }
-
-// -- Public API ----------------------------------------------------------------
-
 /**
  * GET /api/matching/volunteers/:projectId
  *
@@ -671,7 +698,8 @@ export async function matchProjects(
       if (row.embedding) {
         embeddingMap = await fetchProjectEmbeddingSimilarity(
           row.embedding,
-          candidates.length
+          1000
+          // candidates.length
         );
       }
     }
