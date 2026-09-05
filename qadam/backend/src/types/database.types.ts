@@ -137,6 +137,10 @@ export type Database = {
         Args: { match_count: number; match_threshold: number; query_embedding: string }
         Returns: { similarity: number; volunteer_id: string }[]
       }
+      ngo_impact_metrics: {
+        Args: { p_ngo_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       document_status: "uploaded" | "processing" | "ready" | "failed"
