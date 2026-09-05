@@ -176,8 +176,8 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 |---------------|-----------------------------------------------|
 | **Access**    | Volunteer only                                |
 | **Components**| `VolunteerHistoryPage`, `AttendanceHistoryCard` |
-| **API calls** | `GET /api/attendance/history`                 |
-| **Notes**     | The 10 most recent events the volunteer attended and completed (finished event + checked-out attendance), newest first. Clicking a card expands the event details — NGO, location, event date, check-in/check-out times, and the volunteer's verified hours contributed — plus a link to the project. Read-only: the history view never modifies attendance data. |
+| **API calls** | `GET /api/attendance/history`, `GET /api/attendance/:attendanceId/certificate` |
+| **Notes**     | The 10 most recent events the volunteer attended and completed (finished event + checked-out attendance), newest first. Clicking a card expands the event details — NGO, location, event date, check-in/check-out times, and the volunteer's verified hours contributed — plus a link to the project and a **Generate certificate** button. The certificate endpoint returns an on-demand PDF (not stored). Read-only: the history view never modifies attendance data. |
 
 ### `/volunteer/impact` — Personal Impact
 

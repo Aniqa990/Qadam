@@ -63,6 +63,7 @@
 | Embeddings| Hugging Face Inference API (HTTP, never local model)  |
 | Validation| Zod (API inputs and AI outputs)                       |
 | QR        | `qrcode` (generation), `html5-qrcode` (scanning)      |
+| PDF       | `pdfkit` (on-demand volunteer certificates; never stored) |
 | Charts    | Recharts                                              |
 | Maps      | MapLibre GL + OpenFreeMap; BigDataCloud reverse geocoding (Nominatim fallback); Nominatim place search (`/api/geocoding/search`) |
 
@@ -100,6 +101,7 @@ backend/
 │   │   ├── registration.service.ts
 │   │   ├── matching.service.ts
 │   │   ├── attendance.service.ts
+│   │   ├── certificate.service.ts
 │   │   ├── geocoding.service.ts
 │   │   ├── knowledge.service.ts
 │   │   ├── impact.service.ts

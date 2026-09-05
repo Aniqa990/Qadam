@@ -1,18 +1,41 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Building2, ChevronDown, Clock, MapPin } from "lucide-react";
+import { Award, Building2, ChevronDown, Clock, Loader2, MapPin } from "lucide-react";
 import type { AttendanceHistoryItem } from "@/types/attendance";
+import { useApi } from "@/hooks/useApi";
+import {
+  downloadAttendanceCertificate,
+  triggerBrowserDownload,
+} from "@/lib/attendance";
 import { cn, formatDate, formatDateTime, formatHours } from "@/lib/utils";
 
 /**
  * Card for one completed event in the volunteer's history (frontend-routes.md
  * "/volunteer/history"). Collapsed it shows enough to identify the event;
  * clicking expands the session details including the volunteer's verified
- * hours. Read-only - the history view never modifies attendance data.
+ * hours. History entries are already filtered to finished events with
+ * check-out, so "Generate certificate" is always eligible here — the server
+ * still re-validates before rendering the PDF.
  */
 export default function AttendanceHistoryCard({ item }: { item: AttendanceHistoryItem }) {
+  const { apiBlob } = useApi();
   const [expanded, setExpanded] = useState(false);
+  const [certLoading, setCertLoading] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
   const detailsId = `history-details-${item.id}`;
+
+  async function handleGenerateCertificate() {
+    setCertError(null);
+    setCertLoading(true);
+    try {
+      const { blob, filename } = await downloadAttendanceCertificate(apiBlob, item.id);
+      triggerBrowserDownload(blob, filename);
+    } catch (err) {
+      setCertError(err instanceof Error ? err.message : "Failed to generate certificate");
+    } finally {
+      setCertLoading(false);
+    }
+  }
 
   return (
     <article className="rounded-lg border bg-background">
@@ -78,12 +101,34 @@ export default function AttendanceHistoryCard({ item }: { item: AttendanceHistor
               <dd className="font-semibold text-emerald-700">{formatHours(item.hours)}</dd>
             </div>
           </dl>
-          <Link
-            to={`/projects/${item.project_id}`}
-            className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            View project
-          </Link>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link
+              to={`/projects/${item.project_id}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              View project
+            </Link>
+            <button
+              type="button"
+              onClick={handleGenerateCertificate}
+              disabled={certLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {certLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Award className="h-4 w-4" aria-hidden="true" />
+              )}
+              {certLoading ? "Generating…" : "Generate certificate"}
+            </button>
+          </div>
+
+          {certError && (
+            <p className="mt-2 text-xs text-destructive" role="alert">
+              {certError}
+            </p>
+          )}
         </div>
       )}
     </article>

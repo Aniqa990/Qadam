@@ -110,3 +110,33 @@ export function listAttendanceRecords(api: ApiListFetcher, params: AttendanceRec
 export function listAttendanceHistory(api: ApiFetcher): Promise<AttendanceHistoryItem[]> {
   return api<AttendanceHistoryItem[]>("/attendance/history");
 }
+
+/**
+ * Download an on-demand volunteer certificate PDF for an eligible attendance
+ * row. The server rebuilds all certificate fields from PostgreSQL — the
+ * client only supplies the attendance id.
+ */
+export async function downloadAttendanceCertificate(
+  apiBlob: (path: string, init?: RequestInit) => Promise<{ blob: Blob; filename: string | null }>,
+  attendanceId: string
+): Promise<{ blob: Blob; filename: string }> {
+  const result = await apiBlob(`/attendance/${encodeURIComponent(attendanceId)}/certificate`);
+  return {
+    blob: result.blob,
+    filename: result.filename ?? `qadam-certificate-${attendanceId}.pdf`,
+  };
+}
+
+/** Trigger a browser file download from a Blob without navigating away. */
+export function triggerBrowserDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Defer revoke so the download pipeline can read the blob.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}

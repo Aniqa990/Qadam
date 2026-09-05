@@ -1,6 +1,6 @@
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useCallback } from "react";
-import { apiFetch, apiFetchList, type ApiListResponse } from "@/lib/api";
+import { apiFetch, apiFetchBlob, apiFetchList, type ApiListResponse } from "@/lib/api";
 
 /**
  * Returns fetchers pre-bound to the current Clerk session token, so
@@ -31,5 +31,13 @@ export function useApi() {
     [getToken]
   );
 
-  return { api, apiList };
+  const apiBlob = useCallback(
+    async (path: string, init?: RequestInit) => {
+      const token = await getToken();
+      return apiFetchBlob(path, { ...init, token });
+    },
+    [getToken]
+  );
+
+  return { api, apiList, apiBlob };
 }
