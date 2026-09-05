@@ -299,6 +299,43 @@ describe("buildVolunteerEmbeddingText", () => {
     });
     expect(text).toBe("Skills: . Interests: .");
   });
+
+  it("appends history_summary when present", () => {
+    const text = buildVolunteerEmbeddingText({
+      skills: ["teaching"],
+      interests: ["education"],
+      history_summary: "Completed: After-School Tutoring (education, skills: teaching)",
+    });
+    expect(text).toBe(
+      "Skills: teaching. Interests: education. History: Completed: After-School Tutoring (education, skills: teaching)"
+    );
+  });
+
+  it("omits History segment when history_summary is null or whitespace-only", () => {
+    const withNull = buildVolunteerEmbeddingText({
+      skills: ["a"],
+      interests: ["b"],
+      history_summary: null,
+    });
+    expect(withNull).toBe("Skills: a. Interests: b.");
+
+    const withBlank = buildVolunteerEmbeddingText({
+      skills: ["a"],
+      interests: ["b"],
+      history_summary: "   \n  ",
+    });
+    expect(withBlank).toBe("Skills: a. Interests: b.");
+  });
+
+  it("produces a different content_hash when history_summary changes", () => {
+    const without = buildVolunteerEmbeddingText({ skills: ["a"], interests: ["b"] });
+    const with_ = buildVolunteerEmbeddingText({
+      skills: ["a"],
+      interests: ["b"],
+      history_summary: "Completed: X (cat, skills: y)",
+    });
+    expect(contentHash(without)).not.toBe(contentHash(with_));
+  });
 });
 
 describe("buildProjectEmbeddingText", () => {

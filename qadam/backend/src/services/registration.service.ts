@@ -26,7 +26,8 @@ import {
  *     are closed for registration
  *   - one registration per (volunteer, project): a duplicate is a 409; a
  *     previously cancelled registration is reactivated in place (the DB
- *     unique constraint forbids a second row)
+ *     unique constraint forbids a second row); a completed registration
+ *     blocks re-registration (409 REGISTRATION_COMPLETED)
  *   - confirmed registrations can never exceed the project's capacity
  *   - min_age eligibility is checked deterministically against the profile
  */
@@ -184,8 +185,17 @@ export async function register(
 
   // A previously cancelled registration is reactivated in place - the
   // UNIQUE (volunteer_id, project_id) constraint forbids a second row.
+  // A completed registration blocks silent re-registration; the volunteer
+  // must deliberately re-register through a separate flow (not yet built).
   if (existingData) {
-    const existing = existingData as { id: string };
+    const existing = existingData as { id: string; status: string };
+    if (existing.status === "completed") {
+      throw new AppError(
+        "You have already completed this project and cannot re-register silently",
+        409,
+        "REGISTRATION_COMPLETED"
+      );
+    }
     const { data: reactivated, error: reactivationError } = await supabase
       .from("registrations")
       .update({

@@ -189,6 +189,20 @@ describe("register", () => {
     expect(mock.calls.inserts["registrations"]).toBeUndefined();
   });
 
+  it("rejects re-registration for a completed registration with 409 REGISTRATION_COMPLETED", async () => {
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [
+      { data: { id: "reg-1", status: "completed" }, error: null }, // duplicate lookup
+    ]);
+
+    await expect(register(volunteerIdentity(), { project_id: "proj-1" })).rejects.toMatchObject({
+      statusCode: 409,
+      code: "REGISTRATION_COMPLETED",
+    });
+    expect(mock.calls.updates["registrations"]).toBeUndefined();
+    expect(mock.calls.inserts["registrations"]).toBeUndefined();
+  });
+
   it("maps a unique-constraint race on insert to 409", async () => {
     mock.queue("projects", [{ data: projectRow(), error: null }]);
     mock.queue("registrations", [

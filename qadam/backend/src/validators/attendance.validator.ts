@@ -4,8 +4,9 @@ import { z } from "zod";
  * Zod schemas for the attendance module (api-contracts.md "Attendance
  * Module"). The QR payload encodes `qadam://attendance/{event_id}/{token}`
  * (AGENTS.md "Attendance") - both values arrive as a plain pair in the
- * check-in/check-out body; the client-supplied event_id is only a lookup
- * hint and is never trusted for authorization.
+ * scan body; the client-supplied event_id is only a lookup hint and is
+ * never trusted for authorization. The same schema backs /check-in,
+ * /check-out (legacy) and the unified /scan endpoint.
  */
 export const createAttendanceEventSchema = z
   .object({

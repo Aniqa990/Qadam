@@ -20,7 +20,11 @@ export default function RegistrationCard({
   onCancel?: (registration: RegistrationSummary) => void;
   busy?: boolean;
 }) {
-  const cancellable = onCancel !== undefined && registration.status === "confirmed";
+  // Cancel is only available when the project is still open for action —
+  // a confirmed registration on a completed/cancelled project is read-only.
+  const projectOpen =
+    registration.project_status === "upcoming" || registration.project_status === "active";
+  const cancellable = onCancel !== undefined && registration.status === "confirmed" && projectOpen;
 
   return (
     <article className="flex h-full flex-col gap-3 rounded-lg border bg-background p-4">

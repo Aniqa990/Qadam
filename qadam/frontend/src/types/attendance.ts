@@ -73,6 +73,20 @@ export interface CheckOutResult {
   hours: number;
 }
 
+/**
+ * Unified scan response (POST /api/attendance/scan). The server decides
+ * whether the scan was a check-in or a check-out based on the existing
+ * attendance row, so the frontend just renders `action` directly.
+ */
+export interface ScanResult {
+  action: "checked-in" | "checked-out";
+  attendance_id: string;
+  event_id: string;
+  check_in: string;
+  check_out: string | null;
+  hours: number | null;
+}
+
 /** `qadam://attendance/{event_id}/{token}` or null when the text isn't one. */
 export function parseAttendancePayload(text: string): { event_id: string; token: string } | null {
   const match = text.trim().match(/^qadam:\/\/attendance\/([0-9a-fA-F-]{36})\/([A-Za-z0-9_-]{10,256})$/);

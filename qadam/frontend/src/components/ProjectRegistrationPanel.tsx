@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { cancelRegistration, registerForProject } from "@/lib/registrations";
 import type { ProjectDetail } from "@/types/project";
@@ -66,7 +66,29 @@ export default function ProjectRegistrationPanel({
 
   return (
     <section className="space-y-3 rounded-lg border p-4" aria-label="Registration">
-      {confirmed ? (
+      {/*
+       * Project-closed gate: when the project is completed/cancelled, the
+       * panel is read-only regardless of registration status. This prevents
+       * a confirmed registration on a completed project from showing
+       * "Cancel registration" — the project lifecycle overrides the
+       * registration state (the server would reject the cancel anyway
+       * since the project is not in an open status).
+       */}
+      {!projectOpen && (confirmed || registration?.status === "cancelled") ? (
+        <>
+          <p className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Clock className="h-5 w-5" aria-hidden="true" />
+            {project.status === "completed"
+              ? "This project has ended"
+              : "This project was cancelled"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {confirmed
+              ? `You were registered for this project (registered on ${formatDate(registration?.registered_at)}).`
+              : `Your registration was cancelled before the project ended.`}
+          </p>
+        </>
+      ) : confirmed ? (
         <>
           <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
             <CheckCircle2 className="h-5 w-5" aria-hidden="true" />

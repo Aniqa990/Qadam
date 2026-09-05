@@ -225,15 +225,18 @@ export function contentHash(text: string): string {
 
 /**
  * Build the canonical embedding input for a volunteer.
- * Inputs: skills + interests only (never location/availability).
+ * Inputs: skills + interests + optional history_summary (completed-project
+ * entries appended by the project-completion flow).
  */
 export function buildVolunteerEmbeddingText(input: {
   skills: string[];
   interests: string[];
+  history_summary?: string | null;
 }): string {
   const skills = input.skills.join(", ");
   const interests = input.interests.join(", ");
-  return `Skills: ${skills}. Interests: ${interests}.`;
+  const history = input.history_summary?.trim();
+  return `Skills: ${skills}. Interests: ${interests}.${history ? ` History: ${history}` : ""}`;
 }
 
 /**
@@ -331,7 +334,7 @@ export async function regenerateProjectEmbedding(projectId: string): Promise<voi
 export async function regenerateVolunteerEmbedding(volunteerId: string): Promise<void> {
   const { data, error } = await supabase
     .from("volunteers")
-    .select("skills, interests")
+    .select("skills, interests, history_summary")
     .eq("id", volunteerId)
     .maybeSingle();
   if (error) {
@@ -345,6 +348,7 @@ export async function regenerateVolunteerEmbedding(volunteerId: string): Promise
   const volunteer = data as {
     skills: string[];
     interests: string[];
+    history_summary: string | null;
   };
   const text = buildVolunteerEmbeddingText(volunteer);
   const hash = contentHash(text);

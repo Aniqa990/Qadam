@@ -75,6 +75,25 @@ export async function checkOut(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+/**
+ * POST /api/attendance/scan - unified check-in/check-out endpoint. The
+ * server determines which action applies based on the existing attendance
+ * row; the client just relays the scanned (event_id, token) pair. This
+ * handler is a thin wrapper around recordAttendance() which is designed
+ * to be callable from other flows (NGO manual marking) too.
+ */
+export async function scan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await attendanceService.recordAttendance(
+      identity(req),
+      req.body
+    );
+    return sendSuccess(res, result, result.action === "checked-in" ? 201 : 200);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listRecords(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit, project_id, event_id } = req.query as unknown as {

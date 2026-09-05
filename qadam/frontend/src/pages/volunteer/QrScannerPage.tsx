@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Clock, LogIn, LogOut, XCircle } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
-import { checkIn, checkOut, listAttendanceRecords } from "@/lib/attendance";
-import type { AttendanceRecord, CheckInResult, CheckOutResult } from "@/types/attendance";
+import { recordAttendance, listAttendanceRecords } from "@/lib/attendance";
+import type { AttendanceRecord, ScanResult } from "@/types/attendance";
 import { parseAttendancePayload } from "@/types/attendance";
 import { formatDate, formatDateTime, formatHours } from "@/lib/utils";
 import QrScanner from "@/components/QrScanner";
 
 type ScanOutcome =
-  | { kind: "checked-in"; result: CheckInResult }
-  | { kind: "checked-out"; result: CheckOutResult }
+  | { kind: "checked-in"; result: ScanResult }
+  | { kind: "checked-out"; result: ScanResult }
   | { kind: "error"; message: string };
 
 /**
@@ -17,8 +17,9 @@ type ScanOutcome =
  * scan (or paste) the event QR to check in; the SAME scan again checks out.
  * The client only relays the scanned (event_id, token) pair - the backend
  * performs every validation and is the only writer of attendance rows
- * (AGENTS.md "Attendance"). The check-in 409 ALREADY_CHECKED_IN drives the
- * toggle to check-out client-side.
+ * (AGENTS.md "Attendance"). The unified POST /api/attendance/scan endpoint
+ * returns `action` so the frontend renders the right state directly, with
+ * no ALREADY_CHECKED_IN fallback needed.
  */
 export default function QrScannerPage() {
   const { api, apiList } = useApi();
@@ -59,18 +60,8 @@ export default function QrScannerPage() {
       submittingRef.current = true;
       setSubmitting(true);
       try {
-        try {
-          const result = await checkIn(api, scan);
-          setOutcome({ kind: "checked-in", result });
-        } catch (err) {
-          const code = (err as Error & { code?: string }).code;
-          if (code === "ALREADY_CHECKED_IN") {
-            const result = await checkOut(api, scan);
-            setOutcome({ kind: "checked-out", result });
-          } else {
-            throw err;
-          }
-        }
+        const result = await recordAttendance(api, scan);
+        setOutcome({ kind: result.action, result });
         loadRecords();
       } catch (err) {
         setOutcome({

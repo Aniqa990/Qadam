@@ -25,6 +25,7 @@ import {
   createAttendanceEvent,
   getEventQr,
   getVolunteerHistory,
+  recordAttendance,
   stopAttendanceEvent,
 } from "../../src/services/attendance.service";
 import { AuthorizationError } from "../../src/utils/errors";
@@ -309,6 +310,179 @@ describe("checkOut", () => {
     const result = await checkOut(volunteerIdentity(), SCAN);
 
     expect(result.hours).toBe(2);
+  });
+});
+
+// -- recordAttendance (unified /scan endpoint) ---------------------------------
+
+describe("recordAttendance", () => {
+  /** Queue for a successful first-scan check-in (no existing record). */
+  function queueScanCheckIn(eventOverrides: Record<string, unknown> = {}) {
+    mock.queue("attendance_tokens", [{ data: eventRow(eventOverrides), error: null }]);
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [{ data: { id: "reg-1" }, error: null }]);
+    mock.queue("attendance", [
+      { data: null, error: null }, // existing-record lookup (none)
+      { data: { id: "att-1", check_in: NOW.toISOString() }, error: null }, // insert
+    ]);
+  }
+
+  /** Queue for a second-scan check-out (existing check-in, no check-out). */
+  function queueScanCheckOut() {
+    mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [
+      { data: { id: "reg-1" }, error: null }, // findConfirmedRegistration
+    ]);
+    mock.queue("attendance", [
+      { data: attendanceRow({ check_in: "2026-09-20T08:00:00Z" }), error: null }, // existing
+      { data: { id: "att-1", check_in: "2026-09-20T08:00:00Z", check_out: NOW.toISOString(), hours: 2 }, error: null }, // update
+    ]);
+  }
+
+  it("checks in on the first scan (no existing attendance row)", async () => {
+    queueScanCheckIn();
+
+    const result = await recordAttendance(volunteerIdentity(), SCAN);
+
+    expect(result).toEqual({
+      action: "checked-in",
+      attendance_id: "att-1",
+      event_id: "evt-1",
+      check_in: NOW.toISOString(),
+      check_out: null,
+      hours: null,
+    });
+    expect(mock.calls.inserts["attendance"]).toEqual([
+      {
+        registration_id: "reg-1",
+        volunteer_id: "vol-1",
+        project_id: "proj-1",
+        event_id: "evt-1",
+        check_in: NOW.toISOString(),
+      },
+    ]);
+  });
+
+  it("checks out on a second scan and computes hours", async () => {
+    queueScanCheckOut();
+
+    const result = await recordAttendance(volunteerIdentity(), SCAN);
+
+    expect(result).toEqual({
+      action: "checked-out",
+      attendance_id: "att-1",
+      event_id: "evt-1",
+      check_in: "2026-09-20T08:00:00Z",
+      check_out: NOW.toISOString(),
+      hours: 2,
+    });
+    expect(mock.calls.updates["attendance"]).toEqual([
+      { check_out: NOW.toISOString(), hours: 2 },
+    ]);
+  });
+
+  it("does not write to registrations on check-out", async () => {
+    queueScanCheckOut();
+
+    await recordAttendance(volunteerIdentity(), SCAN);
+
+    // Check-out only touches the attendance table; registrations is
+    // never updated (history_summary is written on project completion
+    // instead, not on per-session check-out).
+    expect(mock.calls.updates["registrations"]).toBeUndefined();
+  });
+
+  it("rejects a third scan (already checked out) with 409 ALREADY_CHECKED_OUT", async () => {
+    mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [{ data: { id: "reg-1" }, error: null }]);
+    mock.queue("attendance", [
+      {
+        data: attendanceRow({
+          check_in: "2026-09-20T08:00:00Z",
+          check_out: "2026-09-20T09:30:00Z",
+          hours: 1.5,
+        }),
+        error: null,
+      },
+    ]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "ALREADY_CHECKED_OUT",
+    });
+  });
+
+  it("rejects an invalid token pair with 400 INVALID_ATTENDANCE_CODE", async () => {
+    mock.queue("attendance_tokens", [{ data: null, error: null }]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_ATTENDANCE_CODE",
+    });
+  });
+
+  it("rejects an unregistered volunteer with 400 NOT_REGISTERED", async () => {
+    mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [{ data: null, error: null }]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "NOT_REGISTERED",
+    });
+  });
+
+  it("rejects a scan outside the window with 400 EVENT_WINDOW_CLOSED", async () => {
+    mock.queue("attendance_tokens", [
+      { data: eventRow({ window_start: "2026-09-20T08:00:00Z", window_end: "2026-09-20T09:00:00Z" }), error: null },
+    ]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "EVENT_WINDOW_CLOSED",
+    });
+  });
+
+  it("rejects a scan before the window opens with 400 EVENT_NOT_STARTED", async () => {
+    mock.queue("attendance_tokens", [
+      { data: eventRow({ window_start: "2026-09-20T11:00:00Z", window_end: "2026-09-20T13:00:00Z" }), error: null },
+    ]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "EVENT_NOT_STARTED",
+    });
+  });
+
+  it("rejects when the project is no longer open with 400 PROJECT_NOT_OPEN", async () => {
+    mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
+    mock.queue("projects", [{ data: projectRow({ status: "completed" }), error: null }]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "PROJECT_NOT_OPEN",
+    });
+  });
+
+  it("maps a unique-constraint race on insert to 409 ALREADY_CHECKED_IN", async () => {
+    mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
+    mock.queue("projects", [{ data: projectRow(), error: null }]);
+    mock.queue("registrations", [{ data: { id: "reg-1" }, error: null }]);
+    mock.queue("attendance", [
+      { data: null, error: null }, // pre-check missed it
+      { data: null, error: { code: "23505", message: "duplicate key" } },
+    ]);
+
+    await expect(recordAttendance(volunteerIdentity(), SCAN)).rejects.toMatchObject({
+      statusCode: 409,
+      code: "ALREADY_CHECKED_IN",
+    });
+  });
+
+  it("rejects NGO callers with 403 before any data access", async () => {
+    await expect(recordAttendance(ngoIdentity(), SCAN)).rejects.toBeInstanceOf(AuthorizationError);
   });
 });
 
