@@ -785,6 +785,32 @@ The authenticated volunteer's 10 most recent completed events, newest first — 
 
 ---
 
+### `GET /api/attendance/:attendanceId/certificate`
+
+Generate and download a volunteer certificate PDF for a completed attendance record.
+
+**Auth:** Required — Volunteer only (must own the attendance row)
+
+**Response (200):** `application/pdf` binary body with:
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="qadam-certificate-<project>-<event_date>.pdf"`
+- `Cache-Control: no-store`
+
+The PDF is generated on demand from authoritative PostgreSQL data (volunteer name, NGO name, project title, event date, verified hours). Certificate details supplied by the client are never trusted. PDFs and certificate records are **not** stored in PostgreSQL or Supabase Storage.
+
+**Eligibility (server-enforced, same as history):**
+1. Attendance row belongs to the authenticated volunteer
+2. `check_out` is set (verified hours exist)
+3. The associated event has finished (`window_end` in the past)
+
+**Error cases:**
+- `400` `ATTENDANCE_INCOMPLETE` — no check-out yet
+- `400` `EVENT_NOT_FINISHED` — event window still open / in the future
+- `403` — attendance belongs to another volunteer (or caller is not a volunteer)
+- `404` — attendance or event not found
+
+---
+
 ## Matching Module — `/api/matching`
 
 ### `GET /api/matching/volunteers/:projectId`

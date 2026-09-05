@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { RequestIdentity } from "../types/auth.types";
 import type { CreateAttendanceEventBody } from "../validators/attendance.validator";
 import * as attendanceService from "../services/attendance.service";
+import * as certificateService from "../services/certificate.service";
 import { AuthenticationError } from "../utils/errors";
 import { sendPaginated, sendSuccess } from "../utils/response";
 
@@ -122,6 +123,27 @@ export async function history(req: Request, res: Response, next: NextFunction) {
   try {
     const items = await attendanceService.getVolunteerHistory(identity(req));
     return sendSuccess(res, items);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/attendance/:attendanceId/certificate — on-demand PDF. Streams the
+ * generated buffer with Content-Disposition attachment; never stores it.
+ */
+export async function downloadCertificate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { buffer, filename } = await certificateService.generateVolunteerCertificate(
+      identity(req),
+      req.params.attendanceId as string
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", String(buffer.length));
+    // Avoid caching personalized certificates on shared proxies.
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(buffer);
   } catch (err) {
     next(err);
   }

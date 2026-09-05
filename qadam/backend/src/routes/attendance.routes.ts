@@ -6,6 +6,7 @@ import { requireRole } from "../middleware/require-role.middleware";
 import { validate } from "../middleware/validate.middleware";
 import {
   attendanceEventIdParamsSchema,
+  attendanceIdParamsSchema,
   attendanceScanSchema,
   createAttendanceEventSchema,
   listAttendanceEventsQuerySchema,
@@ -89,5 +90,14 @@ router.get(
 // events (finished event + checked-out attendance). Scoped to the
 // authenticated volunteer in the service - no query params accepted.
 router.get("/history", requireRole("volunteer"), attendanceController.history);
+
+// On-demand certificate PDF for an eligible attendance row. Must be registered
+// after /history and /events so those path segments are not captured as ids.
+router.get(
+  "/:attendanceId/certificate",
+  requireRole("volunteer"),
+  validate(attendanceIdParamsSchema, "params"),
+  attendanceController.downloadCertificate
+);
 
 export default router;

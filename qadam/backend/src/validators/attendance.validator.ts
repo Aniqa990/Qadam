@@ -48,6 +48,11 @@ export const attendanceEventIdParamsSchema = z.object({
   eventId: z.string().uuid("Attendance event id must be a UUID"),
 });
 
+/** Path params for on-demand certificate download by attendance row id. */
+export const attendanceIdParamsSchema = z.object({
+  attendanceId: z.string().uuid("Attendance id must be a UUID"),
+});
+
 export type CreateAttendanceEventBody = z.infer<typeof createAttendanceEventSchema>;
 export type AttendanceScanBody = z.infer<typeof attendanceScanSchema>;
 export type ListAttendanceEventsQuery = z.infer<typeof listAttendanceEventsQuerySchema>;
