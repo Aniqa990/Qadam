@@ -1082,9 +1082,18 @@ Get the authenticated NGO's verified impact metrics.
     "total_hours": 1250.0,
     "total_volunteers": 85,
     "total_projects": 8,
-    "completed_projects": 5,
     "active_projects": 2,
-    "monthly_hours": [
+    "completed_projects": 5,
+    "attendance_rate": 0.7647,
+    "by_cause": [
+      { "category": "education", "projects": 4, "volunteers": 50, "hours": 800.5 },
+      { "category": "environment", "projects": 4, "volunteers": 35, "hours": 449.5 }
+    ],
+    "by_location": [
+      { "location": "Jeddah, Saudi Arabia", "projects": 5, "volunteers": 60, "hours": 900.0 },
+      { "location": "Riyadh, Saudi Arabia", "projects": 3, "volunteers": 25, "hours": 350.0 }
+    ],
+    "by_month": [
       { "month": "2026-07", "hours": 120.0 },
       { "month": "2026-08", "hours": 210.0 },
       { "month": "2026-09", "hours": 180.0 }
@@ -1093,6 +1102,6 @@ Get the authenticated NGO's verified impact metrics.
 }
 ```
 
-**Calculation:** All metrics derived from `attendance` + `registrations` + `projects` tables. Only verified (check-out completed) hours are counted.
+**Calculation:** All metrics are aggregated in a single PostgreSQL round trip by the `ngo_impact_metrics` function (migration 013) over the `projects` / `registrations` / `attendance` rows owned by the authenticated NGO — no metrics table, no AI. `total_hours` counts only verified (check-out completed) hours; attendance is the source of truth for participation and survives later registration/project cancellation. `total_volunteers` is distinct volunteers with a confirmed registration on the NGO's projects, and `attendance_rate` is the share of those volunteers with at least one check-in (0 when nobody is registered; hours per cause/location/month are rounded to 2 decimals and sorted by hours descending, months chronological). No new indexes are required — the aggregation uses `idx_projects_ngo_id`, `idx_registrations_project_id`, and `idx_attendance_project_id`.
 
 ---

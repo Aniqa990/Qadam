@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes";
 import aiRoutes from "./routes/ai.routes";
 import geocodingRoutes from "./routes/geocoding.routes";
 import healthRoutes from "./routes/health.routes";
+import impactRoutes from "./routes/impact.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import matchingRoutes from "./routes/matching.routes";
 import ngoRoutes from "./routes/ngo.routes";
@@ -49,7 +50,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/matching", matchingRoutes);
 app.use("/api/ai", aiRoutes);
-// app.use("/api/impact", impactRoutes);
+app.use("/api/impact", impactRoutes);
 
   app.use(notFoundMiddleware);
   app.use(errorMiddleware);

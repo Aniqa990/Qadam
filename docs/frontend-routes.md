@@ -296,9 +296,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | NGO only                                      |
-| **Components**| `NgoImpactPage`, `ImpactStats`, `HoursOverTimeChart` (Recharts), `CategoryBreakdownChart` (Recharts), `TopVolunteersTable`, `NarrativePanel` |
-| **API calls** | `GET /api/impact/ngo`, `POST /api/impact/ngo/narrative` (on demand) |
-| **Notes**     | Verified metrics: total hours, volunteer count, project counts, category breakdown charts, monthly hours chart, top volunteers. "Generate AI Summary" button triggers narrative generation (optional). |
+| **Components**| `NgoImpactPage` with `SummaryCard`s (Projects, Volunteers, Verified Hours, Attendance Rate) + Recharts `BarChart` (cause), `BarChart` (location), `LineChart` (monthly hours) |
+| **API calls** | `GET /api/impact/ngo`                    |
+| **Notes**     | All metrics are aggregated server-side in PostgreSQL (`ngo_impact_metrics`, migration 013) from `projects`/`registrations`/`attendance` — no AI, no metrics table, nothing hardcoded. Four summary cards on top, then hours-by-cause, hours-by-location, and hours-by-month charts. Loading, error (retry), and empty states included; the charts show an empty state until verified (checked-out) QR attendance hours exist. |
 
 ---
 
