@@ -331,7 +331,9 @@ describe("recordAttendance", () => {
   function queueScanCheckOut() {
     mock.queue("attendance_tokens", [{ data: eventRow(), error: null }]);
     mock.queue("projects", [{ data: projectRow(), error: null }]);
-    mock.queue("registrations", [{ data: { id: "reg-1" }, error: null }]);
+    mock.queue("registrations", [
+      { data: { id: "reg-1" }, error: null }, // findConfirmedRegistration
+    ]);
     mock.queue("attendance", [
       { data: attendanceRow({ check_in: "2026-09-20T08:00:00Z" }), error: null }, // existing
       { data: { id: "att-1", check_in: "2026-09-20T08:00:00Z", check_out: NOW.toISOString(), hours: 2 }, error: null }, // update
@@ -378,6 +380,17 @@ describe("recordAttendance", () => {
     expect(mock.calls.updates["attendance"]).toEqual([
       { check_out: NOW.toISOString(), hours: 2 },
     ]);
+  });
+
+  it("does not write to registrations on check-out", async () => {
+    queueScanCheckOut();
+
+    await recordAttendance(volunteerIdentity(), SCAN);
+
+    // Check-out only touches the attendance table; registrations is
+    // never updated (history_summary is written on project completion
+    // instead, not on per-session check-out).
+    expect(mock.calls.updates["registrations"]).toBeUndefined();
   });
 
   it("rejects a third scan (already checked out) with 409 ALREADY_CHECKED_OUT", async () => {

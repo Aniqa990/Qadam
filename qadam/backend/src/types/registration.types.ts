@@ -6,7 +6,7 @@ import type { ProjectStatus } from "./project.types";
  * authenticated identity in registration.service - a client-supplied
  * volunteer_id is never accepted (api-contracts.md "Registrations Module").
  */
-export type RegistrationStatus = "confirmed" | "cancelled";
+export type RegistrationStatus = "confirmed" | "cancelled" | "completed";
 
 /**
  * Raw `registrations` row plus the joined columns the list/detail queries
