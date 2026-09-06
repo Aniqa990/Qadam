@@ -14,6 +14,8 @@ export interface ProjectSummary {
   id: string;
   ngo_id: string;
   ngo_name: string;
+  /** NGO logo (public Supabase Storage URL or external link); null when unset. */
+  ngo_logo_url: string | null;
   title: string;
   description: string;
   category: string;

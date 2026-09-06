@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, MessageCircle, Users } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
+import NgoLogo from "@/components/NgoLogo";
 import ProjectRegistrationPanel from "@/components/ProjectRegistrationPanel";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -89,8 +90,14 @@ export default function ProjectDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold">{project.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              by <span className="font-medium text-foreground">{project.ngo_name}</span>
+            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+              by
+              <NgoLogo
+                ngoName={project.ngo_name}
+                logoUrl={project.ngo_logo_url}
+                className="h-5 w-5 text-[10px]"
+              />
+              <span className="font-medium text-foreground">{project.ngo_name}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">

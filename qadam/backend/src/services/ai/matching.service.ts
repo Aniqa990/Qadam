@@ -65,6 +65,7 @@ export interface ProjectRecommendation {
   project_id: string;
   project_title: string;
   ngo_name: string;
+  ngo_logo_url: string | null;
   composite_score: number;
   reasons: MatchReasons;
 }
@@ -543,6 +544,7 @@ interface ProjectCandidate {
 function scoreProject(
   project: ProjectCandidate,
   ngoName: string,
+  ngoLogoUrl: string | null,
   volunteer: {
     skills: string[];
     interests: string[];
@@ -572,6 +574,7 @@ function scoreProject(
     project_id: project.id,
     project_title: project.title,
     ngo_name: ngoName,
+    ngo_logo_url: ngoLogoUrl,
     composite_score: round4(score),
     reasons: buildReasons(
       volunteer.skills,
@@ -634,14 +637,14 @@ export async function matchProjects(
   const { data: projectsData, error: projectsError } = await supabase
     .from("projects")
     .select(
-      "id, ngo_id, title, category, description, required_skills, responsibilities, eligibility, capacity, location_lat, location_lng, ngos(name)"
+      "id, ngo_id, title, category, description, required_skills, responsibilities, eligibility, capacity, location_lat, location_lng, ngos(name, logo_url)"
     )
     .in("status", MATCHABLE_STATUSES as unknown as string[]);
   if (projectsError) {
     throw new AppError(`Failed to load projects: ${projectsError.message}`, 500);
   }
   const allProjects = (projectsData ?? []) as unknown as (ProjectCandidate & {
-    ngos: { name: string } | null;
+    ngos: { name: string; logo_url: string | null } | null;
   })[];
   if (allProjects.length === 0) return [];
 
@@ -713,6 +716,7 @@ export async function matchProjects(
     return scoreProject(
       { id: p.id, ngo_id: p.ngo_id, title: p.title, category: p.category, description: p.description, required_skills: p.required_skills, responsibilities: p.responsibilities, eligibility: p.eligibility, capacity: p.capacity, location_lat: p.location_lat, location_lng: p.location_lng },
       ngoName,
+      p.ngos?.logo_url ?? null,
       volunteer,
       volunteerLoc,
       embeddingMap

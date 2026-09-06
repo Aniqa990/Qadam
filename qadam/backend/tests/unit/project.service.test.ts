@@ -35,6 +35,7 @@ vi.mock("../../src/lib/supabase", () => {
     builder.or = chain;
     builder.gte = chain;
     builder.lte = chain;
+    builder.not = chain;
     builder.single = () => Promise.resolve(take());
     builder.maybeSingle = () => Promise.resolve(take());
     builder.then = (onFulfilled: never, onRejected?: never) =>
@@ -59,7 +60,7 @@ vi.mock("../../src/lib/supabase", () => {
 });
 
 import * as supabaseModule from "../../src/lib/supabase";
-import { listProjects, updateProject } from "../../src/services/project.service";
+import { getProject, listProjects, updateProject } from "../../src/services/project.service";
 import { haversineDistanceKm } from "../../src/utils/distance";
 
 const mock = (supabaseModule as unknown as { __mock: {
@@ -320,5 +321,147 @@ describe("listProjects near_km proximity filter", () => {
 
     expect(result.total).toBe(1);
     expect(result.data[0].distance_km).toBeNull();
+  });
+});
+
+// =============================================================================
+
+describe("lazy date-based status transitions", () => {
+  beforeEach(() => mock.reset());
+
+  /** UTC date string offset from today (mirrors the service's comparison). */
+  function isoDate(offsetDays: number): string {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    return d.toISOString().slice(0, 10);
+  }
+
+  /** Local calendar date offset from today — mirrors the service's
+   * calendarToday() comparison exactly (en-CA = YYYY-MM-DD, server-local). */
+  function localDate(offsetDays: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toLocaleDateString("en-CA");
+  }
+
+  /** Confirmed-count lookup consumed by getProject's toDetail. */
+  function queueRegistrationsCount() {
+    mock.queue("registrations", [{ data: [], error: null, count: 0 }]);
+  }
+
+  it("activates an upcoming project once its start date has arrived", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "upcoming", start_date: isoDate(-1), end_date: isoDate(5) }), error: null },
+      { data: null, error: null },
+    ]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    expect(detail.status).toBe("active");
+  });
+
+  it("activates an upcoming project on the local day it starts (start_date == today)", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "upcoming", start_date: localDate(0), end_date: localDate(1) }), error: null },
+      { data: null, error: null },
+    ]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    expect(detail.status).toBe("active");
+  });
+
+  it("keeps an active project active through its final day (end_date == today)", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "active", start_date: localDate(-1), end_date: localDate(0) }), error: null },
+    ]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    // Completion fires the day AFTER end_date, not on it.
+    expect(detail.status).toBe("active");
+  });
+
+  it("completes an active project after its end date passes", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "active", start_date: isoDate(-10), end_date: isoDate(-1) }), error: null },
+      { data: null, error: null },
+    ]);
+    // appendHistorySummaries reads attendance (no checked-out rows here).
+    mock.queue("attendance", [{ data: [], error: null }]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    expect(detail.status).toBe("completed");
+  });
+
+  it("completes an overdue upcoming project in one sweep", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "upcoming", start_date: isoDate(-10), end_date: isoDate(-1) }), error: null },
+      { data: null, error: null }, // → active
+      { data: null, error: null }, // → completed
+    ]);
+    mock.queue("attendance", [{ data: [], error: null }]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(ngoIdentity(), "proj-1");
+
+    expect(detail.status).toBe("completed");
+  });
+
+  it("leaves in-window projects untouched", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "active", start_date: isoDate(-5), end_date: isoDate(5) }), error: null },
+    ]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    expect(detail.status).toBe("active");
+  });
+
+  it("keeps the stored status when the transition write fails", async () => {
+    mock.queue("projects", [
+      { data: projectRow({ status: "upcoming", start_date: isoDate(-1), end_date: isoDate(5) }), error: null },
+      { data: null, error: { message: "storage unavailable" } },
+    ]);
+    queueRegistrationsCount();
+
+    const detail = await getProject(volunteerIdentity(), "proj-1");
+
+    // The failed auto-transition is logged and swallowed; the read still
+    // succeeds with the stored (stale) status.
+    expect(detail.status).toBe("upcoming");
+  });
+
+  it("sweeps stale statuses when listing projects", async () => {
+    const stale = projectRow({
+      id: "proj-stale",
+      status: "upcoming",
+      start_date: isoDate(-1),
+      end_date: isoDate(5),
+    });
+    const fresh = projectRow({
+      id: "proj-fresh",
+      status: "upcoming",
+      start_date: isoDate(5),
+      end_date: isoDate(10),
+    });
+    mock.queue("projects", [
+      { data: [stale, fresh], error: null, count: 2 },
+      { data: null, error: null },
+    ]);
+    queueRegistrations();
+
+    const result = await listProjects(volunteerIdentity(), { page: 1, limit: 20 });
+
+    expect(result.data.map((p) => [p.id, p.status])).toEqual([
+      ["proj-stale", "active"],
+      ["proj-fresh", "upcoming"],
+    ]);
   });
 });

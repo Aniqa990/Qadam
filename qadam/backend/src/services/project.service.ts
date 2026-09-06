@@ -113,6 +113,7 @@ function toSummary(
     id: row.id,
     ngo_id: row.ngo_id,
     ngo_name: row.ngo?.name ?? "",
+    ngo_logo_url: row.ngo?.logo_url ?? null,
     title: row.title,
     description: row.description,
     category: row.category,
@@ -218,7 +219,7 @@ export async function listProjects(
     status = status ?? undefined;
   }
 
-  let dbQuery = supabase.from("projects").select("*, ngo:ngos(name)", { count: "exact" });
+  let dbQuery = supabase.from("projects").select("*, ngo:ngos(name, logo_url)", { count: "exact" });
   if (identity.role === "ngo") {
     dbQuery = dbQuery.eq("ngo_id", identity.domainId);
   } else {
@@ -282,6 +283,7 @@ export async function listProjects(
       .sort((a, b) => a.km - b.km);
 
     const pageRows = near.slice((page - 1) * limit, page * limit);
+    await sweepLazyDateTransitions(pageRows.map((x) => x.row));
     const confirmedCounts = await fetchConfirmedCounts(pageRows.map((x) => x.row.id));
     return {
       data: pageRows.map((x) =>
@@ -301,6 +303,7 @@ export async function listProjects(
   }
 
   const rows = (data ?? []) as unknown as ProjectRow[];
+  await sweepLazyDateTransitions(rows);
   const confirmedCounts = await fetchConfirmedCounts(rows.map((row) => row.id));
 
   return {
@@ -318,7 +321,7 @@ export async function listProjects(
 export async function getProject(identity: RequestIdentity, projectId: string): Promise<ProjectDetail> {
   const { data, error } = await supabase
     .from("projects")
-    .select("*, ngo:ngos(name)")
+    .select("*, ngo:ngos(name, logo_url)")
     .eq("id", projectId)
     .maybeSingle();
   if (error) {
@@ -332,6 +335,11 @@ export async function getProject(identity: RequestIdentity, projectId: string): 
   if (row.status === "draft" && !isOwner(identity, row)) {
     throw new NotFoundError("Project not found");
   }
+
+  // Reads are the trigger for date-based lifecycle auto-detection (see
+  // applyLazyDateTransitions below) - the returned detail reflects any
+  // transition applied here.
+  await applyLazyDateTransitions(row);
 
   return toDetail(row, await countConfirmedRegistrations(projectId));
 }
@@ -508,25 +516,94 @@ export async function transitionProject(
     throw new ConflictError(`A project in '${row.status}' status cannot be moved to '${target}'`);
   }
 
+  await applyStatusChange(row, target);
+
+  return { id: row.id, status: target };
+}
+
+/**
+ * Core status write shared by the explicit NGO-initiated transitions above
+ * and the lazy date-based auto-detection below: persists the new status and
+ * runs the side effects tied to it. The caller is responsible for having
+ * validated that row.status → target is a legal STATUS_TRANSITIONS move.
+ */
+async function applyStatusChange(row: ProjectRow, target: ProjectStatus): Promise<void> {
   const { error } = await supabase
     .from("projects")
     .update({ status: target, updated_at: new Date().toISOString() })
-    .eq("id", projectId);
+    .eq("id", row.id);
   if (error) {
     throw new AppError(`Failed to update project status: ${error.message}`, 500);
   }
 
   if (target === "cancelled") {
-    await cancelConfirmedRegistrations(projectId);
+    await cancelConfirmedRegistrations(row.id);
   }
   if (target === "completed") {
     await appendHistorySummaries(row);
   }
   if (target === "upcoming") {
-    triggerEmbeddingRegeneration(projectId);
+    triggerEmbeddingRegeneration(row.id);
   }
+}
 
-  return { id: row.id, status: target };
+/**
+ * ARCHITECTURAL TRADE-OFF (deliberate): project lifecycle auto-detection is
+ * evaluated LAZILY on read, not by a scheduler. There is no cron, worker, or
+ * queue - transitions fire only when a user request actually touches project
+ * data (detail fetch, NGO/volunteer listings). Until someone views a stale
+ * project, its stored status simply lags reality - an acceptable MVP drift
+ * that avoids premature background-job infrastructure (AGENTS.md: no new
+ * infrastructure unless explicitly requested).
+ *
+ * Rules (DATE columns compared against "today" — the server's LOCAL
+ * calendar date, as YYYY-MM-DD):
+ *   - upcoming + today >= start_date → active    (the project has begun)
+ *   - active    + today >  end_date  → completed (the day after it ends)
+ * An overdue "upcoming" project walks both steps in one sweep. Drafts and
+ * terminal statuses never transition automatically.
+ *
+ * Mutates row.status in place so the response built from it reflects the
+ * post-transition state. A failed write is logged and swallowed - the read
+ * that triggered the sweep must never fail because of it; the stored status
+ * stays authoritative until a later request retries.
+ */
+/**
+ * "Today" as a YYYY-MM-DD calendar date in the server's LOCAL timezone
+ * (en-CA is the locale that formats as YYYY-MM-DD). DATE columns are
+ * timezone-naive: NGOs pick them meaning their own calendar day ("starts
+ * Sep 7"), so the sweep must flip a project at LOCAL midnight — a UTC
+ * comparison would lag UTC+5 users by five hours (a project starting
+ * "today" stays upcoming until 05:00). In deployment, set the TZ env var
+ * to the platform's primary timezone.
+ */
+function calendarToday(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+async function applyLazyDateTransitions(row: ProjectRow): Promise<void> {
+  const today = calendarToday();
+  try {
+    if (row.status === "upcoming" && row.start_date <= today) {
+      await applyStatusChange(row, "active");
+      row.status = "active";
+    }
+    if (row.status === "active" && row.end_date < today) {
+      await applyStatusChange(row, "completed");
+      row.status = "completed";
+    }
+  } catch (err) {
+    logger.warn("Lazy lifecycle auto-transition failed; keeping stored status", {
+      projectId: row.id,
+      status: row.status,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Runs the lazy auto-detection over a page of listed projects. */
+async function sweepLazyDateTransitions(rows: ProjectRow[]): Promise<void> {
+  await Promise.all(rows.map((row) => applyLazyDateTransitions(row)));
 }
 
 /**

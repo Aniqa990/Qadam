@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
-import { getNgoProfile, updateNgoProfile } from "@/lib/profiles";
+import { getNgoProfile, updateNgoProfile, uploadNgoLogo } from "@/lib/profiles";
 import type { NgoProfile } from "@/types/profile";
 import NgoProfileForm from "@/components/NgoProfileForm";
 
@@ -60,6 +60,7 @@ export default function NgoProfilePage() {
             key={profile?.id ?? "profile"}
             initial={profile}
             submitLabel="Save changes"
+            onUploadLogo={(file) => uploadNgoLogo(api, file)}
             onSubmit={async (payload) => {
               await updateNgoProfile(api, payload);
               setSaved(true);

@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { RequestIdentity } from "../types/auth.types";
 import type { CreateNgoProfileBody, UpdateNgoProfileBody } from "../validators/ngo.validator";
 import * as ngoService from "../services/ngo.service";
-import { AuthenticationError } from "../utils/errors";
+import { AppError, AuthenticationError } from "../utils/errors";
 import { sendSuccess } from "../utils/response";
 
 /**
@@ -39,6 +39,30 @@ export async function createProfile(req: Request, res: Response, next: NextFunct
 export async function updateProfile(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await ngoService.updateProfile(identity(req), req.body as UpdateNgoProfileBody);
+    return sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/ngos/profile/logo
+ *
+ * Upload a logo image (multipart/form-data, single "file" field). Stores the
+ * file in the public ngo-logos bucket and returns its public URL.
+ */
+export async function uploadLogo(req: Request, res: Response, next: NextFunction) {
+  try {
+    const multerFile = req.file;
+    if (!multerFile) {
+      throw new AppError("No file provided", 400, "MISSING_FILE");
+    }
+
+    const result = await ngoService.uploadLogo(identity(req), {
+      buffer: multerFile.buffer,
+      mimetype: multerFile.mimetype,
+      size: multerFile.size,
+    });
     return sendSuccess(res, result);
   } catch (err) {
     next(err);

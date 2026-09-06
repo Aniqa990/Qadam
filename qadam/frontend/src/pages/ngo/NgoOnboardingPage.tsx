@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useApi } from "@/hooks/useApi";
-import { createNgoProfile } from "@/lib/profiles";
+import { createNgoProfile, uploadNgoLogo } from "@/lib/profiles";
 import NgoProfileForm from "@/components/NgoProfileForm";
 
 /**
@@ -41,6 +41,7 @@ export default function NgoOnboardingPage() {
       </header>
       <NgoProfileForm
         submitLabel="Create organization profile"
+        onUploadLogo={(file) => uploadNgoLogo(api, file)}
         onSubmit={async (payload) => {
           await createNgoProfile(api, payload);
           // Full reload: guards re-evaluate against the fresh profile.

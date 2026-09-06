@@ -117,18 +117,18 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | Any authenticated user                        |
-| **Components**| `ProjectsPage`, `ProjectCard`, `ProjectFilters`, `Pagination` |
+| **Components**| `ProjectsPage`, `ProjectCard` (`NgoLogo` brand row), `ProjectFilters`, `Pagination` |
 | **API calls** | `GET /api/projects?page=&limit=&category=&search=&status=` |
-| **Notes**     | Volunteers see upcoming/active projects. NGOs see their own projects + public ones. |
+| **Notes**     | Volunteers see upcoming/active projects. NGOs see their own projects + public ones. Each card shows the NGO's logo + name (`NgoLogo` falls back to an initial circle when no logo is set). |
 
 ### `/projects/:id` — Project Detail
 
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | Any authenticated user (drafts only visible to owning NGO) |
-| **Components**| `ProjectDetailPage`, `ProjectInfo`, `RegistrationButton` (volunteers), `ProjectActions` (NGO owner) |
+| **Components**| `ProjectDetailPage`, `ProjectInfo`, `RegistrationButton` (volunteers), `ProjectActions` (NGO owner), `NgoLogo` (header branding) |
 | **API calls** | `GET /api/projects/:id`                       |
-| **Notes**     | Volunteers see the project pin and `City, Country` on a map plus a "Register" button. NGO owner sees edit/status controls. |
+| **Notes**     | Volunteers see the project pin and `City, Country` on a map plus a "Register" button. NGO owner sees edit/status controls. The header shows the NGO's logo next to its name (`by <logo> <ngo_name>`). |
 
 ---
 
@@ -157,9 +157,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | Volunteer only                                |
-| **Components**| `VolunteerProjectsPage`, `ProjectCard`, `RecommendedProjects` |
+| **Components**| `VolunteerProjectsPage`, `ProjectCard`, `RecommendedProjects` (`RecommendedProjectCard` with `NgoLogo`) |
 | **API calls** | `GET /api/matching/projects?limit=10`, `GET /api/registrations` |
-| **Notes**     | Shows recommended projects (matching) at top, then registered projects below. |
+| **Notes**     | Shows recommended projects (matching) at top, then registered projects below. Recommended cards carry the NGO's logo next to its name. |
 
 ### `/volunteer/registrations` — My Registrations
 
@@ -206,9 +206,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | NGO only (redirected here if `onboarding_complete = false`) |
-| **Components**| `NgoOnboardingPage`, `NgoOnboardingForm`      |
-| **API calls** | `POST /api/ngos/profile`, `GET /api/auth/me`  |
-| **Notes**     | Organization details form. On completion, `onboarding_complete` becomes `true`. |
+| **Components**| `NgoOnboardingPage`, `NgoProfileForm` (shared with `/ngo/profile`) |
+| **API calls** | `POST /api/ngos/profile`, `POST /api/ngos/profile/logo` (optional), `GET /api/auth/me` |
+| **Notes**     | Organization details form. Optional logo: pick an image file (PNG/JPEG/WebP ≤ 2 MB, uploaded via the logo endpoint) or paste an image URL. On completion, `onboarding_complete` becomes `true`. |
 
 ### `/ngo/dashboard` — NGO Dashboard
 
@@ -224,9 +224,9 @@ The `ProtectedLayout` component wraps all authenticated routes and provides:
 | Property      | Value                                         |
 |---------------|-----------------------------------------------|
 | **Access**    | NGO only                                      |
-| **Components**| `NgoProfilePage`, `NgoProfileForm`            |
-| **API calls** | `GET /api/ngos/profile`, `PUT /api/ngos/profile` |
-| **Notes**     | Edit organization details, logo, and categories. NGO profile has no location field; project locations are set in the project form. |
+| **Components**| `NgoProfilePage`, `NgoProfileForm`, `NgoLogo` (live preview) |
+| **API calls** | `GET /api/ngos/profile`, `PUT /api/ngos/profile`, `POST /api/ngos/profile/logo` |
+| **Notes**     | Edit organization details, logo, and categories. The logo picker offers both upload (file input; a picked file is uploaded first and its public URL replaces the pasted link) and link (image URL). NGO profile has no location field; project locations are set in the project form. |
 
 ### `/ngo/projects` — Manage Projects
 

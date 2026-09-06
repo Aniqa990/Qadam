@@ -219,6 +219,32 @@ Update specific NGO profile fields.
 
 ---
 
+### `POST /api/ngos/profile/logo`
+
+Upload an organization logo image. Stores the file in the public `ngo-logos` Supabase Storage bucket (`ngo-logos/{ngo_id}/logo-{timestamp}.{ext}`) and points `ngos.logo_url` at its public URL, replacing any previous bucket-hosted logo (the replaced object is removed best-effort; external URLs are never touched). The `ngo-logos` bucket is auto-created at server startup.
+
+**Auth:** Required — NGO only
+
+**Request:** `multipart/form-data`
+- `file`: The logo image (PNG, JPEG, or WebP — max 2 MB)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "logo_url": "https://<project>.supabase.co/storage/v1/object/public/ngo-logos/<ngo_id>/logo-1693700000.png" }
+}
+```
+
+The upload persists `ngos.logo_url` immediately, so the new logo is live even before the next profile save; the profile form then sends the returned URL through the normal `PUT /api/ngos/profile` as `logo_url` to keep the payload consistent. NGOs can also skip the upload entirely and set `logo_url` to an external image URL through the profile endpoints — both paths render everywhere organization branding appears (project cards, recommended-project cards, project detail headers).
+
+**Error cases:**
+- `400` `MISSING_FILE` — no file in the multipart body
+- `400` `UNSUPPORTED_FILE_TYPE` — not a PNG/JPEG/WebP image
+- `400` `FILE_TOO_LARGE` — over the 2 MB limit
+
+---
+
 ### `GET /api/ngos`
 
 List all NGOs with completed onboarding (public directory).
@@ -289,6 +315,7 @@ Optional `near_km` (volunteer only): keep only projects within the given km of t
       "id": "uuid",
       "ngo_id": "uuid",
       "ngo_name": "Education For All",
+      "ngo_logo_url": "https://<project>.supabase.co/storage/v1/object/public/ngo-logos/<ngo_id>/logo-1693700000.png",
       "title": "After-School Tutoring",
       "description": "...",
       "category": "education",
@@ -307,13 +334,17 @@ Optional `near_km` (volunteer only): keep only projects within the given km of t
 }
 ```
 
+`ngo_logo_url` is the NGO's uploaded/logo or external image URL; `null` when unset (the UI falls back to an initial circle).
+
+**Lazy lifecycle auto-detection:** Project reads apply date-based status transitions before responding — there is **no cron or worker**; the sweep runs only when a request actually touches project data. `upcoming` + today ≥ `start_date` → `active`; `active` + today > `end_date` → `completed` ("today" is the server's **local** calendar date — DATE columns are timezone-naive, so projects flip at local midnight; set the `TZ` env var in deployment). The transitions use the same write path and side effects as the explicit NGO endpoints, including appending volunteer history summaries. An overdue `upcoming` project walks both steps in one pass. Until someone reads a stale project its stored status simply lags reality, and a failed auto-transition is logged and swallowed so the read still succeeds with the stored status.
+
 ---
 
 ### `GET /api/projects/:id`
 
 Get full project details.
 
-**Auth:** Required (any role). Drafts visible only to the owning NGO.
+**Auth:** Required (any role). Drafts visible only to the owning NGO. Lazy lifecycle auto-detection applies here too (see `GET /api/projects`).
 
 **Response (200):**
 ```json
@@ -323,6 +354,7 @@ Get full project details.
     "id": "uuid",
     "ngo_id": "uuid",
     "ngo_name": "Education For All",
+    "ngo_logo_url": "https://<project>.supabase.co/storage/v1/object/public/ngo-logos/<ngo_id>/logo-1693700000.png",
     "title": "After-School Tutoring",
     "description": "Full description here...",
     "category": "education",
@@ -427,7 +459,7 @@ Transition project from `draft` → `upcoming` (the project becomes volunteer-vi
 
 ### `POST /api/projects/:id/activate`
 
-Transition project from `upcoming` → `active`. Activating freezes the project's details (edits are rejected from this point on).
+Transition project from `upcoming` → `active`. Activating freezes the project's details (edits are rejected from this point on). This transition also happens automatically on read once `start_date` passes — see lazy lifecycle auto-detection under `GET /api/projects`.
 
 **Auth:** Required — NGO only (must own the project)
 
@@ -440,7 +472,7 @@ Transition project from `upcoming` → `active`. Activating freezes the project'
 
 ### `POST /api/projects/:id/complete`
 
-Transition project from `active` → `completed`.
+Transition project from `active` → `completed`. This transition also happens automatically on read once `end_date` has passed — see lazy lifecycle auto-detection under `GET /api/projects`.
 
 **Auth:** Required — NGO only (must own the project)
 
@@ -862,6 +894,7 @@ Get ranked project recommendations for the authenticated volunteer.
       "project_id": "uuid",
       "project_title": "After-School Tutoring",
       "ngo_name": "Education For All",
+      "ngo_logo_url": "https://<project>.supabase.co/storage/v1/object/public/ngo-logos/<ngo_id>/logo-1693700000.png",
       "composite_score": 0.78,
       "reasons": {
         "distance_km": 3.1,

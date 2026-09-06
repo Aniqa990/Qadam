@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { env } from "./config/env";
+import { ensureLogoBucket } from "./services/ngo.service";
 import { ensureStorageBucket } from "./services/knowledge.service";
 import { logger } from "./utils/logger";
 
@@ -12,7 +13,9 @@ app.listen(env.PORT, () => {
   });
 });
 
-// Fire-and-forget: ensure the "knowledge" storage bucket exists.
-// A failure here only logs a warning — the first document upload will
-// surface a clearer error if the bucket is truly unavailable.
+// Fire-and-forget: ensure the storage buckets exist (private "knowledge"
+// documents, public "ngo-logos" brand images). A failure here only logs a
+// warning — the first upload will surface a clearer error if the bucket is
+// truly unavailable.
 ensureStorageBucket();
+ensureLogoBucket();

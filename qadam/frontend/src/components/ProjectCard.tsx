@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { CalendarDays, MapPin, Users } from "lucide-react";
 import type { ProjectSummary } from "@/types/project";
 import { formatDateRange } from "@/lib/utils";
+import NgoLogo from "./NgoLogo";
 import ProjectStatusBadge from "./ProjectStatusBadge";
 
 /**
@@ -21,6 +22,15 @@ export default function ProjectCard({ project }: { project: ProjectSummary }) {
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold leading-snug">{project.title}</h3>
         <ProjectStatusBadge status={project.status} />
+      </div>
+
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <NgoLogo
+          ngoName={project.ngo_name}
+          logoUrl={project.ngo_logo_url}
+          className="h-5 w-5 text-[10px]"
+        />
+        <span className="truncate">{project.ngo_name}</span>
       </div>
 
       <p className="line-clamp-2 text-sm text-muted-foreground">{project.description}</p>

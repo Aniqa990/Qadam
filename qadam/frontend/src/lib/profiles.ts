@@ -63,3 +63,17 @@ export function updateNgoProfile(
 ): Promise<{ id: string; onboarding_complete: boolean }> {
   return api("/ngos/profile", { method: "PUT", body: JSON.stringify(input) });
 }
+
+/**
+ * Uploads a logo image (multipart/form-data) and returns its public URL -
+ * api-contracts.md POST /api/ngos/profile/logo. The returned URL is then
+ * sent through the normal profile save as `logo_url`.
+ */
+export function uploadNgoLogo(
+  api: ApiFetcher,
+  file: File
+): Promise<{ logo_url: string }> {
+  const body = new FormData();
+  body.append("file", file);
+  return api("/ngos/profile/logo", { method: "POST", body });
+}

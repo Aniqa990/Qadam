@@ -36,6 +36,8 @@ export interface ProjectMatch {
   project_id: string;
   project_title: string;
   ngo_name: string;
+  /** NGO logo (public Supabase Storage URL or external link); null when unset. */
+  ngo_logo_url: string | null;
   composite_score: number;
   reasons: MatchReasons;
 }
