@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { MapPin, Sparkles, Target, ArrowRight } from "lucide-react";
 import type { ProjectMatch } from "@/types/matching";
 import { CompositeBadge, ScoreBreakdown } from "./MatchCard";
+import NgoLogo from "./NgoLogo";
 
 /**
  * Compact recommended-project card shown in the volunteer's "Recommended
@@ -30,7 +31,14 @@ export default function RecommendedProjectCard({
           <h3 className="font-semibold leading-snug text-foreground group-hover:text-primary">
             {match.project_title}
           </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">{match.ngo_name}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <NgoLogo
+              ngoName={match.ngo_name}
+              logoUrl={match.ngo_logo_url}
+              className="h-4 w-4 text-[8px]"
+            />
+            <span className="truncate">{match.ngo_name}</span>
+          </p>
         </div>
         <CompositeBadge score={match.composite_score} />
       </div>

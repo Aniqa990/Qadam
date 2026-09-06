@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { NgoProfile } from "@/types/profile";
 import type { NgoProfilePayload } from "@/lib/profiles";
 import { PROJECT_CATEGORIES } from "@/lib/projects";
 import { cn } from "@/lib/utils";
+import NgoLogo from "./NgoLogo";
 
 interface NgoProfileFormValues {
   name: string;
   description: string;
+  logo_url: string;
   mission: string;
   website: string;
   phone: string;
@@ -18,6 +20,7 @@ interface NgoProfileFormValues {
 const EMPTY_VALUES: NgoProfileFormValues = {
   name: "",
   description: "",
+  logo_url: "",
   mission: "",
   website: "",
   phone: "",
@@ -25,11 +28,15 @@ const EMPTY_VALUES: NgoProfileFormValues = {
   categories: [],
 };
 
+/** Mirrors the backend's 2 MB logo upload limit. */
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
 function toFormValues(profile?: NgoProfile | null): NgoProfileFormValues {
   if (!profile) return { ...EMPTY_VALUES };
   return {
     name: profile.name ?? "",
     description: profile.description ?? "",
+    logo_url: profile.logo_url ?? "",
     mission: profile.mission ?? "",
     website: profile.website ?? "",
     phone: profile.phone ?? "",
@@ -40,12 +47,27 @@ function toFormValues(profile?: NgoProfile | null): NgoProfileFormValues {
 
 type FormErrors = Partial<Record<keyof NgoProfileFormValues, string>>;
 
-function validateValues(values: NgoProfileFormValues): FormErrors {
+function validateValues(values: NgoProfileFormValues, logoFile: File | null): FormErrors {
   const errors: FormErrors = {};
   if (values.name.trim().length === 0) errors.name = "Organization name is required.";
   if (values.description.trim().length === 0)
     errors.description = "Tell volunteers what your organization does.";
   if (values.categories.length > 10) errors.categories = "Choose at most 10 categories.";
+
+  // A picked file replaces any pasted link, so the URL check only applies
+  // when no file is selected.
+  const logo = values.logo_url.trim();
+  if (!logoFile && logo !== "") {
+    try {
+      const url = new URL(logo);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("bad protocol");
+    } catch {
+      errors.logo_url = "Enter a valid image URL starting with http:// or https://";
+    }
+  }
+  if (logoFile && logoFile.size > LOGO_MAX_BYTES) {
+    errors.logo_url = "Logo image must be 2 MB or smaller.";
+  }
 
   const website = values.website.trim();
   if (website !== "") {
@@ -59,11 +81,10 @@ function validateValues(values: NgoProfileFormValues): FormErrors {
   return errors;
 }
 
-function toPayload(values: NgoProfileFormValues): NgoProfilePayload {
+function toPayload(values: NgoProfileFormValues): Omit<NgoProfilePayload, "logo_url"> {
   return {
     name: values.name.trim(),
     description: values.description.trim(),
-    logo_url: null,
     mission: values.mission.trim() === "" ? null : values.mission.trim(),
     website: values.website.trim() === "" ? null : values.website.trim(),
     phone: values.phone.trim() === "" ? null : values.phone.trim(),
@@ -79,6 +100,8 @@ interface NgoProfileFormProps {
   submitLabel: string;
   /** Performs the API call; resolving = success, throwing = shown inline. */
   onSubmit: (payload: NgoProfilePayload) => Promise<void>;
+  /** Uploads a picked logo file (page-owned API call); returns its public URL. */
+  onUploadLogo?: (file: File) => Promise<{ logo_url: string }>;
 }
 
 /**
@@ -88,11 +111,38 @@ interface NgoProfileFormProps {
  * local form state + client-side validation only - the API call lives in the
  * page component (AGENTS.md frontend rules).
  */
-export default function NgoProfileForm({ initial, submitLabel, onSubmit }: NgoProfileFormProps) {
+export default function NgoProfileForm({
+  initial,
+  submitLabel,
+  onSubmit,
+  onUploadLogo,
+}: NgoProfileFormProps) {
   const [values, setValues] = useState<NgoProfileFormValues>(() => toFormValues(initial));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Currently saved (or pasted) logo URL; null when the field is empty.
+  const savedLogoUrl = values.logo_url.trim() === "" ? null : values.logo_url.trim();
+
+  // Local preview of a picked file via a browser blob URL, revoked when the
+  // selection changes so the preview never leaks memory.
+  const logoPreviewUrl = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile]
+  );
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
+    };
+  }, [logoPreviewUrl]);
+
+  function clearLogoFile() {
+    setLogoFile(null);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }
 
   function set<K extends keyof NgoProfileFormValues>(key: K, value: NgoProfileFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -111,13 +161,24 @@ export default function NgoProfileForm({ initial, submitLabel, onSubmit }: NgoPr
     event.preventDefault();
     setSubmitError(null);
 
-    const nextErrors = validateValues(values);
+    const nextErrors = validateValues(values, logoFile);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     setSubmitting(true);
     try {
-      await onSubmit(toPayload(values));
+      // A picked file is uploaded first; its public URL replaces any pasted
+      // link (validateValues treats the two inputs as mutually exclusive).
+      let logoUrl = savedLogoUrl;
+      if (logoFile) {
+        if (!onUploadLogo) throw new Error("Logo upload is unavailable - paste an image URL instead.");
+        logoUrl = (await onUploadLogo(logoFile)).logo_url;
+      }
+      await onSubmit({ ...toPayload(values), logo_url: logoUrl });
+      // Keep the form mirroring what was just saved (the page also reloads
+      // the profile, but this state lives here until remount).
+      setValues((prev) => ({ ...prev, logo_url: logoUrl ?? "" }));
+      clearLogoFile();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -172,6 +233,57 @@ export default function NgoProfileForm({ initial, submitLabel, onSubmit }: NgoPr
           {errors.description && (
             <p className="mt-1 text-xs text-destructive">{errors.description}</p>
           )}
+        </div>
+        <div>
+          <label htmlFor="ngo-logo-file" className="block text-sm font-medium">
+            Logo
+          </label>
+          <div className="mt-1 flex items-start gap-4">
+            <NgoLogo
+              ngoName={values.name}
+              logoUrl={logoPreviewUrl ?? savedLogoUrl}
+              className="h-16 w-16 text-lg"
+            />
+            <div className="min-w-0 flex-1">
+              <input
+                ref={logoInputRef}
+                id="ngo-logo-file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                disabled={submitting}
+                className="block w-full cursor-pointer rounded-md border border-input bg-background text-sm text-muted-foreground file:mr-3 file:cursor-pointer file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-secondary-foreground hover:file:opacity-90"
+              />
+              {logoFile && (
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="truncate">
+                    {logoFile.name} - replaces the link below when you save.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearLogoFile}
+                    className="shrink-0 font-medium text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+              <input
+                id="ngo-logo-url"
+                value={values.logo_url}
+                onChange={(e) => set("logo_url", e.target.value)}
+                placeholder="…or paste an image URL (https://…)"
+                className={inputClass("logo_url")}
+              />
+              {errors.logo_url && (
+                <p className="mt-1 text-xs text-destructive">{errors.logo_url}</p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Square PNG, JPEG, or WebP up to 2 MB. Shown next to your
+                organization name on your projects.
+              </p>
+            </div>
+          </div>
         </div>
         <div>
           <label htmlFor="ngo-mission" className="block text-sm font-medium">

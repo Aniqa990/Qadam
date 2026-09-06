@@ -38,8 +38,8 @@ export interface ProjectRow {
   hours_per_session: number | null;
   created_at: string;
   updated_at: string;
-  /** Present when the query embeds ngos(name) - list/detail only. */
-  ngo?: { name: string } | null;
+  /** Present when the query embeds ngos(name, logo_url) - list/detail only. */
+  ngo?: { name: string; logo_url: string | null } | null;
 }
 
 /** List-item shape per api-contracts.md `GET /api/projects`. */
@@ -47,6 +47,8 @@ export interface ProjectSummary {
   id: string;
   ngo_id: string;
   ngo_name: string;
+  /** NGO logo (public Supabase Storage URL or external link); null when unset. */
+  ngo_logo_url: string | null;
   title: string;
   description: string;
   category: string;

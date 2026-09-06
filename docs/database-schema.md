@@ -95,7 +95,7 @@ Organization profile for NGO users. Links 1:1 to a Clerk identity via `auth_user
 | `name`             | `TEXT`           | NOT NULL                             | Organization name           |
 | `email`            | `TEXT`           | NOT NULL, UNIQUE                     | Contact email               |
 | `description`      | `TEXT`           |                                      | Organization description    |
-| `logo_url`         | `TEXT`           |                                      | Optional NGO logo URL |
+| `logo_url`         | `TEXT`           |                                      | Optional NGO logo — public `ngo-logos` bucket URL (uploaded via `POST /api/ngos/profile/logo`) or an external image URL; shown wherever organization branding appears |
 | `categories`    | `TEXT[]`         | NOT NULL, DEFAULT `'{}'`            | e.g. `{"education","health"}` |
 | `mission`          | `TEXT`           |                                      | Mission statement           |
 | `website`          | `TEXT`           |                                      |                             |
@@ -128,7 +128,7 @@ Projects created by NGOs with a status lifecycle.
 | `eligibility`       | `JSONB`           | NOT NULL, DEFAULT `'{}'`            | See schema below             |
 | `capacity`          | `INTEGER`         | NOT NULL, CHECK (`capacity > 0`)    | Max volunteers               |
 | `whatsapp_group_url` | `TEXT`         |                                      | Optional WhatsApp group URL |
-| `status`            | `project_status`  | NOT NULL, DEFAULT `'draft'`         | Lifecycle: `draft → upcoming → active → completed/cancelled`; details are frozen once `active` |
+| `status`            | `project_status`  | NOT NULL, DEFAULT `'draft'`         | Lifecycle: `draft → upcoming → active → completed/cancelled`; details are frozen once `active`. Date-based transitions are also applied lazily on read — see the note below |
 | `start_date`        | `DATE`            | NOT NULL                             |                              |
 | `end_date`          | `DATE`            | NOT NULL                             |                              |
 | `event_date`        | `DATE`            |                                      | Single-event date (if applicable) |
@@ -159,6 +159,8 @@ Note: `volunteers` has no `gender` column. Any gender-based project eligibility 
 - `idx_projects_status` — on `status`
 - `idx_projects_required_skills` — GIN on `required_skills`
 - `idx_projects_date_range` — on `(start_date, end_date)`
+
+**Lazy lifecycle auto-detection:** No cron/worker exists — date-based transitions are evaluated lazily inside the project read endpoints (`GET /api/projects`, `GET /api/projects/:id`): `upcoming` + today ≥ `start_date` → `active`, and `active` + today > `end_date` → `completed` ("today" = the server's local calendar date, since DATE columns are timezone-naive; set `TZ` in deployment). Same write path and side effects as the explicit NGO transition endpoints, including appending `volunteers.history_summary` entries. Until a request touches a stale project its stored status simply lags reality; a failed auto-transition is logged and swallowed so the read never fails.
 
 ---
 
@@ -322,6 +324,15 @@ Cached semantic embedding of a project for matching.
 - `idx_project_embeddings_embedding` — using ivfflat on `embedding vector_cosine_ops`
 
 ---
+
+## Storage Buckets
+
+| Bucket      | Visibility | Contents                | Path convention                                   | Limits                          |
+|-------------|------------|-------------------------|---------------------------------------------------|---------------------------------|
+| `knowledge` | Private    | NGO RAG source documents | `knowledge/{ngo_id}/{document_id}/{file_name}`     | 10 MB per file (`chk_knowledge_file_size`) |
+| `ngo-logos` | Public     | NGO logo images         | `ngo-logos/{ngo_id}/logo-{timestamp}.{ext}`        | 2 MB; PNG, JPEG, or WebP        |
+
+Buckets are infrastructure, not migrations — both are auto-created idempotently at server startup (`ensureStorageBucket` / `ensureLogoBucket`). `ngo-logos` is public because brand marks are rendered to every visitor on project cards and detail pages. Replaced logo objects are removed best-effort; external `logo_url` links (set directly through the profile endpoints) are never touched.
 
 ## Row Level Security (RLS) Policies
 
