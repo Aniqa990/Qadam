@@ -44,7 +44,18 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <SignUp signInUrl="/login" forceRedirectUrl="/" unsafeMetadata={{ role }} />
+      {/*
+        Role must be in unsafeMetadata at account-creation time so the
+        user.created webhook (and /auth/me reconcile) can promote it to
+        publicMetadata and create the volunteers/ngos row. Do not render
+        <SignUp> before role is chosen.
+      */}
+      <SignUp
+        signInUrl="/login"
+        forceRedirectUrl="/"
+        fallbackRedirectUrl="/"
+        unsafeMetadata={{ role }}
+      />
     </div>
   );
 }

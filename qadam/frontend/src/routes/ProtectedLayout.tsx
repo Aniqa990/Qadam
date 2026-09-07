@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import AppHeader from "@/components/AppHeader";
+import EstablishRoleForm from "@/components/EstablishRoleForm";
 import FloatingAssistant from "@/components/FloatingAssistant";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -11,12 +12,13 @@ import { useAuth } from "@/hooks/useAuth";
  * directly.
  */
 export default function ProtectedLayout() {
-  const { isLoaded, isSignedIn, isResolving, role, onboardingComplete, error } = useAuth();
+  const { isLoaded, isSignedIn, isResolving, role, status, onboardingComplete, error, establishRole } =
+    useAuth();
 
   if (!isLoaded || isResolving) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        Loading...
+        Setting up your account...
       </div>
     );
   }
@@ -33,13 +35,17 @@ export default function ProtectedLayout() {
     );
   }
 
+  if (status === "pending_role" || !role) {
+    return <EstablishRoleForm onSelect={establishRole} error={error} />;
+  }
+
   // Show role-specific nav only when the user has completed onboarding.
   // Onboarding pages self-check and redirect, so they never render with nav.
   const showNav = onboardingComplete;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {showNav && role && <AppHeader role={role} />}
+      {showNav && <AppHeader role={role} />}
       <Outlet />
       {showNav && <FloatingAssistant />}
     </div>
