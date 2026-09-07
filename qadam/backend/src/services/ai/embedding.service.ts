@@ -197,6 +197,14 @@ export async function generateEmbedding(text: string): Promise<EmbeddingVector> 
     );
   }
 
+  if (vector.length !== EXPECTED_DIMENSIONS) {
+    throw new AIProviderError(
+      "MALFORMED_RESPONSE",
+      "huggingface",
+      `HF embedding has ${vector.length} dims; expected ${EXPECTED_DIMENSIONS} for pgvector`
+    );
+  }
+
   return vector as number[];
 }
 

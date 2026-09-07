@@ -49,7 +49,7 @@ export async function ensureStorageBucket(): Promise<void> {
   }
   const { error: createError } = await supabase.storage.createBucket(
     STORAGE_BUCKET,
-    { public: false, fileSizeLimit: 10 * 1024 * 1024 }
+    { public: false, fileSizeLimit: 10 * 1024 * 1024 },
   );
   if (createError) {
     logger.warn("Could not auto-create storage bucket", {
@@ -119,7 +119,7 @@ export interface UploadedFile {
  */
 export async function extractText(
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
 ): Promise<string> {
   switch (mimeType) {
     case "application/pdf": {
@@ -150,7 +150,10 @@ export async function extractText(
         const data = await legacy(buffer);
         return data.text;
       }
-      throw new AppError("pdf-parse module has no recognised text extraction API", 500);
+      throw new AppError(
+        "pdf-parse module has no recognised text extraction API",
+        500,
+      );
     }
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
       const mammoth = await import("mammoth");
@@ -163,7 +166,7 @@ export async function extractText(
       throw new AppError(
         `Unsupported file type: ${mimeType}`,
         400,
-        "UNSUPPORTED_FILE_TYPE"
+        "UNSUPPORTED_FILE_TYPE",
       );
   }
 }
@@ -182,7 +185,7 @@ export async function extractText(
 export function chunkText(
   text: string,
   chunkSize: number = CHUNK_SIZE_CHARS,
-  overlap: number = CHUNK_OVERLAP_CHARS
+  overlap: number = CHUNK_OVERLAP_CHARS,
 ): string[] {
   if (!text.trim()) return [];
 
@@ -190,29 +193,34 @@ export function chunkText(
   let start = 0;
 
   while (start < text.length && chunks.length < MAX_CHUNKS_PER_DOCUMENT) {
-    const end = Math.min(start + chunkSize, text.length);
+    let end = Math.min(start + chunkSize, text.length);
 
-    // If we're not at the end of the text, try to break at a word boundary
-    let actualEnd = end;
+    // Try to break at a word boundary if not at the absolute end
     if (end < text.length) {
       const spaceIndex = text.lastIndexOf(" ", end);
-      if (spaceIndex > start + chunkSize / 2) {
-        actualEnd = spaceIndex;
+      if (spaceIndex > start) {
+        end = spaceIndex;
       }
     }
 
-    const chunk = text.slice(start, actualEnd).trim();
-    if (chunk) chunks.push(chunk);
+    const chunk = text.slice(start, end).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
 
-    // Advance past the overlap region
-    start = actualEnd - overlap;
-    if (start <= 0 && actualEnd >= text.length) break;
-    if (start < 0) start = actualEnd;
+    // Prevent infinite loops if progress halts
+    const nextStart = end - overlap;
+    if (nextStart <= start) {
+      start = end; // Force forward movement
+    } else {
+      start = nextStart;
+    }
+
+    if (end >= text.length) break;
   }
 
   return chunks;
 }
-
 // -- Ingestion pipeline ---------------------------------------------------------
 
 /**
@@ -228,7 +236,7 @@ async function ingestDocument(
   documentId: string,
   ngoId: string,
   fileBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
 ): Promise<void> {
   // Mark as processing
   await supabase
@@ -272,7 +280,7 @@ async function ingestDocument(
     if (insertError) {
       throw new AppError(
         `Failed to insert knowledge chunks: ${insertError.message}`,
-        500
+        500,
       );
     }
 
@@ -317,7 +325,7 @@ async function ingestDocument(
  */
 export async function uploadDocument(
   identity: RequestIdentity,
-  file: UploadedFile
+  file: UploadedFile,
 ): Promise<KnowledgeDocument> {
   if (identity.role !== "ngo") {
     throw new AuthorizationError("Only NGO accounts can upload documents");
@@ -328,7 +336,7 @@ export async function uploadDocument(
     throw new AppError(
       `Unsupported file type: ${file.mimetype}. Allowed: PDF, DOCX, TXT`,
       400,
-      "UNSUPPORTED_FILE_TYPE"
+      "UNSUPPORTED_FILE_TYPE",
     );
   }
 
@@ -337,7 +345,7 @@ export async function uploadDocument(
     throw new AppError(
       "File size exceeds the 10 MB limit",
       400,
-      "FILE_TOO_LARGE"
+      "FILE_TOO_LARGE",
     );
   }
 
@@ -359,7 +367,7 @@ export async function uploadDocument(
   if (docError) {
     throw new AppError(
       `Failed to create document record: ${docError.message}`,
-      500
+      500,
     );
   }
 
@@ -375,13 +383,10 @@ export async function uploadDocument(
     });
   if (storageError) {
     // Clean up the document record on storage failure
-    await supabase
-      .from("knowledge_documents")
-      .delete()
-      .eq("id", doc.id);
+    await supabase.from("knowledge_documents").delete().eq("id", doc.id);
     throw new AppError(
       `Failed to upload file to storage: ${storageError.message}`,
-      500
+      500,
     );
   }
 
@@ -411,7 +416,7 @@ export async function uploadDocument(
  * List all documents for the authenticated NGO.
  */
 export async function listDocuments(
-  identity: RequestIdentity
+  identity: RequestIdentity,
 ): Promise<DocumentSummary[]> {
   if (identity.role !== "ngo") {
     throw new AuthorizationError("Only NGO accounts can list documents");
@@ -419,7 +424,9 @@ export async function listDocuments(
 
   const { data, error } = await supabase
     .from("knowledge_documents")
-    .select("id, file_name, file_type, file_size, status, chunk_count, created_at")
+    .select(
+      "id, file_name, file_type, file_size, status, chunk_count, created_at",
+    )
     .eq("ngo_id", identity.domainId)
     .order("created_at", { ascending: false });
   if (error) {
@@ -436,7 +443,7 @@ export async function listDocuments(
  */
 export async function deleteDocument(
   identity: RequestIdentity,
-  documentId: string
+  documentId: string,
 ): Promise<{ message: string }> {
   if (identity.role !== "ngo") {
     throw new AuthorizationError("Only NGO accounts can delete documents");
@@ -481,7 +488,7 @@ export async function deleteDocument(
   if (deleteError) {
     throw new AppError(
       `Failed to delete document: ${deleteError.message}`,
-      500
+      500,
     );
   }
 
