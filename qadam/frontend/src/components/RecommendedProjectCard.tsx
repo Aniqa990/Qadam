@@ -23,15 +23,15 @@ export default function RecommendedProjectCard({
   return (
     <Link
       to={`/projects/${match.project_id}`}
-      className="group flex flex-col rounded-xl border bg-background p-5 transition-all hover:border-ring hover:shadow-md"
+      className="qadam-card-interactive group flex h-full flex-col p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
     >
       {/* Header: title + composite badge */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold leading-snug text-foreground group-hover:text-primary">
+          <h3 className="font-semibold leading-snug tracking-tight text-slate-900 group-hover:text-emerald-700">
             {match.project_title}
           </h3>
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
             <NgoLogo
               ngoName={match.ngo_name}
               logoUrl={match.ngo_logo_url}
@@ -44,22 +44,22 @@ export default function RecommendedProjectCard({
       </div>
 
       {/* Quick match indicators */}
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
         {distance_km != null && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="h-3.5 w-3.5 text-emerald-600" />
             {distance_km.toFixed(1)} km
           </span>
         )}
         {skills_match.matched.length > 0 && (
           <span className="inline-flex items-center gap-1">
-            <Target className="h-3.5 w-3.5" />
+            <Target className="h-3.5 w-3.5 text-emerald-600" />
             {skills_match.matched.length} skill{skills_match.matched.length !== 1 ? "s" : ""} matched
           </span>
         )}
         {embedding_similarity >= 0.6 && (
           <span className="inline-flex items-center gap-1">
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
             Similar profile
           </span>
         )}
@@ -71,7 +71,7 @@ export default function RecommendedProjectCard({
       </div>
 
       {/* CTA */}
-      <div className="mt-4 flex items-center gap-1 text-sm font-medium text-primary">
+      <div className="mt-auto flex items-center gap-1 pt-4 text-sm font-medium text-emerald-700">
         View project
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </div>

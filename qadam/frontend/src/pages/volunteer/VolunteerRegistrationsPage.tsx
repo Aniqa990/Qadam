@@ -52,56 +52,53 @@ export default function VolunteerRegistrationsPage() {
   }
 
   return (
-    <>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-        <div>
-          <h1 className="text-2xl font-bold">My registrations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Every project you have signed up for, with its current status.
-          </p>
-        </div>
+    <main className="qadam-page space-y-8">
+      <div>
+        <h1 className="qadam-section-title">My registrations</h1>
+        <p className="qadam-section-sub mt-1.5">
+          Every project you have signed up for, with its current status.
+        </p>
+      </div>
 
-        {error && <ErrorState message={error} onRetry={load} />}
-        {!error && registrations === null && <LoadingState label="Loading your registrations..." />}
+      {error && <ErrorState message={error} onRetry={load} />}
+      {!error && registrations === null && (
+        <LoadingState label="Loading your registrations..." />
+      )}
 
-        {!error && registrations !== null && (
-          <>
-            {actionError && (
-              <p
-                className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-                role="alert"
-              >
-                {actionError}
-              </p>
-            )}
-            {registrations.length === 0 ? (
-              <EmptyState
-                title="No registrations yet"
-                description="Once you register for a project it will show up here with its status."
-                action={
-                  <Link
-                    to="/projects"
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    Browse opportunities
-                  </Link>
-                }
-              />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {registrations.map((registration) => (
-                  <RegistrationCard
-                    key={registration.id}
-                    registration={registration}
-                    onCancel={handleCancel}
-                    busy={pendingId === registration.id}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </main>
-    </>
+      {!error && registrations !== null && (
+        <>
+          {actionError && (
+            <p
+              className="qadam-card border-red-100 bg-red-50/50 px-4 py-3 text-sm text-red-700"
+              role="alert"
+            >
+              {actionError}
+            </p>
+          )}
+          {registrations.length === 0 ? (
+            <EmptyState
+              title="No registrations yet"
+              description="Once you register for a project it will show up here with its status."
+              action={
+                <Link to="/projects" className="qadam-btn-primary">
+                  Browse opportunities
+                </Link>
+              }
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {registrations.map((registration) => (
+                <RegistrationCard
+                  key={registration.id}
+                  registration={registration}
+                  onCancel={handleCancel}
+                  busy={pendingId === registration.id}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
   );
 }

@@ -18,6 +18,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import type { DocumentStatus, KnowledgeDocument } from "@/types/knowledge";
 import { cn } from "@/lib/utils";
+import { ui } from "@/lib/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
 /* ─── Helpers ─── */
@@ -48,22 +49,22 @@ const STATUS_CONFIG: Record<
   uploaded: {
     label: "Uploaded",
     icon: Clock,
-    className: "bg-slate-100 text-slate-700",
+    className: "bg-slate-100 text-slate-600 ring-slate-200/80",
   },
   processing: {
     label: "Processing",
     icon: Loader2,
-    className: "bg-amber-100 text-amber-700",
+    className: "bg-amber-50 text-amber-800 ring-amber-200/70",
   },
   ready: {
     label: "Ready",
     icon: CheckCircle2,
-    className: "bg-emerald-100 text-emerald-700",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-200/70",
   },
   failed: {
     label: "Failed",
     icon: AlertCircle,
-    className: "bg-red-100 text-red-700",
+    className: "bg-red-50 text-red-700 ring-red-200/70",
   },
 };
 
@@ -73,7 +74,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
         config.className
       )}
     >
@@ -205,26 +206,31 @@ export default function NgoKnowledgePage() {
 
   /* ─── Render ─── */
 
-  if (loading) return <LoadingState label="Loading knowledge base..." />;
+  if (loading) {
+    return (
+      <main className={ui.page}>
+        <LoadingState label="Loading knowledge base..." />
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
-      {/* Header */}
+    <main className={cn(ui.page, "space-y-8")}>
       <div>
-        <h1 className="text-2xl font-bold">Knowledge Base</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Upload documents to power the AI assistant with your organization's
-          knowledge. Supported formats: PDF, TXT, DOCX (max 10 MB).
+        <h1 className={ui.sectionTitle}>Knowledge Base</h1>
+        <p className={cn(ui.sectionSub, "mt-1")}>
+          Upload documents to power the AI assistant with your organization's knowledge. Supported
+          formats: PDF, TXT, DOCX (max 10 MB).
         </p>
       </div>
 
       {/* Upload area */}
       <section
         className={cn(
-          "rounded-lg border-2 border-dashed p-8 text-center transition-colors",
+          "rounded-2xl border-2 border-dashed bg-white p-8 text-center shadow-xs transition-colors",
           dragging
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/40"
+            ? "border-emerald-400 bg-emerald-50/40"
+            : "border-slate-200 hover:border-emerald-300"
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -238,42 +244,36 @@ export default function NgoKnowledgePage() {
           onChange={(e) => handleFileSelected(e.target.files?.[0] ?? undefined)}
           disabled={uploading}
         />
-        <Upload
-          className="mx-auto h-8 w-8 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <p className="mt-2 text-sm font-medium">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+          <Upload className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <p className="mt-3 text-sm font-medium text-slate-800">
           {uploading ? "Uploading..." : "Drag & drop a file here, or"}
         </p>
         {!uploading && (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            className={cn(ui.btnPrimary, "mt-3")}
           >
             Choose file
           </button>
         )}
         {uploading && (
           <Loader2
-            className="mx-auto mt-3 h-5 w-5 animate-spin text-primary"
+            className="mx-auto mt-3 h-5 w-5 animate-spin text-emerald-700"
             aria-hidden="true"
           />
         )}
         {uploadError && (
-          <p
-            className="mt-3 text-sm text-destructive"
-            role="alert"
-          >
+          <p className="mt-3 text-sm text-destructive" role="alert">
             {uploadError}
           </p>
         )}
       </section>
 
-      {/* Error */}
       {error && <ErrorState message={error} onRetry={load} />}
 
-      {/* Documents list */}
       {!error && docs !== null && (
         <section>
           {docs.length === 0 ? (
@@ -282,61 +282,48 @@ export default function NgoKnowledgePage() {
               description="Upload your first document above to start building your knowledge base."
             />
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-xs">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left font-semibold">File</th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Size
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Chunks
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Uploaded
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Actions
-                    </th>
+                  <tr className="border-b border-slate-100 bg-slate-50/80">
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">File</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Size</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Chunks</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Uploaded</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {docs.map((doc) => (
                     <tr
                       key={doc.id}
-                      className="border-b last:border-b-0 hover:bg-muted/30"
+                      className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <FileText
-                            className="h-4 w-4 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate font-medium">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                            <FileText className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="truncate font-medium text-slate-900">
                             {doc.file_name}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-slate-500">
                         {fileTypeLabel(doc.file_type)}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-slate-500">
                         {formatFileSize(doc.file_size)}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={doc.status} />
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-slate-500">
                         {doc.chunk_count ?? "—"}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-slate-500">
                         {formatDateTime(doc.created_at)}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -346,16 +333,14 @@ export default function NgoKnowledgePage() {
                               type="button"
                               onClick={() => handleDelete(doc.id)}
                               disabled={deletingId === doc.id}
-                              className="rounded px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                              className="rounded-lg px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                             >
-                              {deletingId === doc.id
-                                ? "Deleting..."
-                                : "Confirm"}
+                              {deletingId === doc.id ? "Deleting..." : "Confirm"}
                             </button>
                             <button
                               type="button"
                               onClick={() => setConfirmDeleteId(null)}
-                              className="rounded p-1 text-muted-foreground hover:bg-secondary"
+                              className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
@@ -365,7 +350,7 @@ export default function NgoKnowledgePage() {
                             type="button"
                             onClick={() => setConfirmDeleteId(doc.id)}
                             disabled={deletingId === doc.id}
-                            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                             title="Delete document"
                           >
                             <Trash2 className="h-4 w-4" />

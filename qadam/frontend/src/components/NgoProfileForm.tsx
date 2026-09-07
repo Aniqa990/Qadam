@@ -188,25 +188,28 @@ export default function NgoProfileForm({
 
   const inputClass = (field: keyof NgoProfileFormValues) =>
     cn(
-      "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      "mt-1 w-full qadam-input",
       errors[field] && "border-destructive focus:ring-destructive"
     );
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-8">
       {submitError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700"
+          role="alert"
+        >
           {submitError}
         </div>
       )}
 
       {/* Organization */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-4 border-b border-slate-100 pb-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Organization
         </h2>
         <div>
-          <label htmlFor="ngo-name" className="block text-sm font-medium">
+          <label htmlFor="ngo-name" className="qadam-label">
             Organization name <span className="text-destructive">*</span>
           </label>
           <input
@@ -219,7 +222,7 @@ export default function NgoProfileForm({
           {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
         </div>
         <div>
-          <label htmlFor="ngo-description" className="block text-sm font-medium">
+          <label htmlFor="ngo-description" className="qadam-label">
             What does your organization do? <span className="text-destructive">*</span>
           </label>
           <textarea
@@ -235,7 +238,7 @@ export default function NgoProfileForm({
           )}
         </div>
         <div>
-          <label htmlFor="ngo-logo-file" className="block text-sm font-medium">
+          <label htmlFor="ngo-logo-file" className="qadam-label">
             Logo
           </label>
           <div className="mt-1 flex items-start gap-4">
@@ -286,7 +289,7 @@ export default function NgoProfileForm({
           </div>
         </div>
         <div>
-          <label htmlFor="ngo-mission" className="block text-sm font-medium">
+          <label htmlFor="ngo-mission" className="qadam-label">
             Mission
           </label>
           <textarea
@@ -302,7 +305,7 @@ export default function NgoProfileForm({
 
       {/* Causes */}
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Causes you work on
         </h2>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Organization categories">
@@ -332,12 +335,12 @@ export default function NgoProfileForm({
 
       {/* Contact & public details */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Contact &amp; public details
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="ngo-website" className="block text-sm font-medium">
+            <label htmlFor="ngo-website" className="qadam-label">
               Website
             </label>
             <input
@@ -351,7 +354,7 @@ export default function NgoProfileForm({
             {errors.website && <p className="mt-1 text-xs text-destructive">{errors.website}</p>}
           </div>
           <div>
-            <label htmlFor="ngo-phone" className="block text-sm font-medium">
+            <label htmlFor="ngo-phone" className="qadam-label">
               Phone
             </label>
             <input
@@ -364,7 +367,7 @@ export default function NgoProfileForm({
           </div>
         </div>
         <div>
-          <label htmlFor="ngo-registration" className="block text-sm font-medium">
+          <label htmlFor="ngo-registration" className="qadam-label">
             Registration number
           </label>
           <input
@@ -381,7 +384,7 @@ export default function NgoProfileForm({
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="qadam-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           {submitting ? "Saving..." : submitLabel}

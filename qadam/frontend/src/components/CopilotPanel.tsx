@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Loader2, Sparkles, CheckCircle2, XCircle } from "lucide-react";
 import { generateCopilotDraft, type CopilotDraft } from "@/lib/copilot";
 import type { ApiFetcher } from "@/lib/projects";
@@ -47,11 +47,11 @@ export default function CopilotPanel({ api, onApply }: CopilotPanelProps) {
   return (
     <aside
       aria-label="AI Project Copilot"
-      className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4"
+      className="space-y-4 rounded-2xl border border-emerald-300/60 bg-emerald-50/40 p-5 ring-1 ring-emerald-200/50 shadow-[0_0_24px_-8px_rgba(16,185,129,0.35)]"
     >
       <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-        <h2 className="text-sm font-semibold text-primary">AI Project Copilot</h2>
+        <Sparkles className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+        <h2 className="text-sm font-semibold text-emerald-800">AI Project Copilot</h2>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -73,14 +73,14 @@ export default function CopilotPanel({ api, onApply }: CopilotPanelProps) {
           placeholder="e.g. Weekend beach cleanup in Jeddah, 15 volunteers, focused on trash collection and environmental awareness"
           rows={3}
           maxLength={2000}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="qadam-input"
         />
 
         <button
           type="button"
           onClick={handleGenerate}
           disabled={loading || !brief.trim()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 qadam-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? (
             <>
@@ -107,7 +107,7 @@ export default function CopilotPanel({ api, onApply }: CopilotPanelProps) {
       )}
 
       {draft && (
-        <div className="space-y-3 rounded-md border bg-background p-3">
+        <div className="space-y-3 rounded-xl border border-emerald-100 bg-white p-3 shadow-xs">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-sm font-semibold">{draft.title}</h3>
@@ -142,7 +142,7 @@ export default function CopilotPanel({ api, onApply }: CopilotPanelProps) {
                 {draft.required_skills.map((skill) => (
                   <li
                     key={skill}
-                    className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                    className="qadam-chip"
                   >
                     {skill}
                   </li>

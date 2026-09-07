@@ -35,7 +35,9 @@ export default function QrScannerPage() {
   const loadRecords = useCallback(() => {
     listAttendanceRecords(apiList, { limit: 10 })
       .then((page) => setRecords(page.data))
-      .catch((err) => setRecordsError(err instanceof Error ? err.message : "Failed to load attendance."))
+      .catch((err) =>
+        setRecordsError(err instanceof Error ? err.message : "Failed to load attendance.")
+      );
   }, [apiList]);
 
   useEffect(() => {
@@ -77,125 +79,121 @@ export default function QrScannerPage() {
   );
 
   return (
-    <>
-      <main className="mx-auto max-w-2xl space-y-8 px-4 py-10">
-        <header>
-          <h1 className="text-2xl font-bold">Scan attendance QR</h1>
-          <p className="mt-2 text-muted-foreground">
-            Scan the QR code shown by the organizer to check in. Scan it again
-            when you leave to check out — your hours are counted automatically.
-          </p>
-        </header>
+    <main className="qadam-page-narrow space-y-8">
+      <header>
+        <h1 className="qadam-section-title">Scan attendance QR</h1>
+        <p className="qadam-section-sub mt-1.5">
+          Scan the QR code shown by the organizer to check in. Scan it again when you leave to
+          check out — your hours are counted automatically.
+        </p>
+      </header>
 
+      <div className="qadam-card p-4 sm:p-5">
         <QrScanner onScan={handlePayload} />
+      </div>
 
-        <form
-          className="space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handlePayload(manualCode);
-          }}
+      <form
+        className="qadam-card space-y-3 p-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handlePayload(manualCode);
+        }}
+      >
+        <label htmlFor="manual-code" className="qadam-label">
+          Or enter the code manually
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            id="manual-code"
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            placeholder="qadam://attendance/..."
+            className="qadam-input"
+          />
+          <button type="submit" disabled={submitting} className="qadam-btn-primary shrink-0">
+            {submitting ? "..." : "Submit"}
+          </button>
+        </div>
+      </form>
+
+      {outcome && (
+        <div
+          role="status"
+          className={
+            outcome.kind === "error"
+              ? "qadam-card border-red-100 bg-red-50/50 p-4 text-sm text-red-700"
+              : "qadam-card border-emerald-100 bg-emerald-50/50 p-4 text-sm"
+          }
         >
-          <label htmlFor="manual-code" className="block text-sm font-medium">
-            Or enter the code manually
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="manual-code"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              placeholder="qadam://attendance/..."
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button
-              type="submit"
-              disabled={submitting}
-              className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "..." : "Submit"}
-            </button>
-          </div>
-        </form>
+          {outcome.kind === "checked-in" && (
+            <p className="flex items-center gap-2 font-medium text-emerald-700">
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              Checked in at {formatDateTime(outcome.result.check_in)}
+            </p>
+          )}
+          {outcome.kind === "checked-out" && (
+            <div className="space-y-1">
+              <p className="flex items-center gap-2 font-medium text-emerald-700">
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Checked out at {formatDateTime(outcome.result.check_out)}
+              </p>
+              <p className="flex items-center gap-2 text-slate-500">
+                <Clock className="h-4 w-4" aria-hidden="true" />
+                Duration: {formatHours(outcome.result.hours)}
+              </p>
+            </div>
+          )}
+          {outcome.kind === "error" && (
+            <p className="flex items-center gap-2 font-medium">
+              <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {outcome.message}
+            </p>
+          )}
+        </div>
+      )}
 
-        {outcome && (
-          <div
-            role="status"
-            className={
-              outcome.kind === "error"
-                ? "rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
-                : "rounded-md border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm"
-            }
-          >
-            {outcome.kind === "checked-in" && (
-              <p className="flex items-center gap-2 font-medium text-emerald-600">
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                Checked in at {formatDateTime(outcome.result.check_in)}
-              </p>
-            )}
-            {outcome.kind === "checked-out" && (
-              <div className="space-y-1">
-                <p className="flex items-center gap-2 font-medium text-emerald-600">
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Checked out at {formatDateTime(outcome.result.check_out)}
-                </p>
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="h-4 w-4" aria-hidden="true" />
-                  Duration: {formatHours(outcome.result.hours)}
-                </p>
-              </div>
-            )}
-            {outcome.kind === "error" && (
-              <p className="flex items-center gap-2 font-medium">
-                <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {outcome.message}
-              </p>
-            )}
-          </div>
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Recent attendance
+        </h2>
+        {recordsError && (
+          <p className="text-sm text-red-600" role="alert">
+            {recordsError}
+          </p>
         )}
-
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Recent attendance
-          </h2>
-          {recordsError && (
-            <p className="text-sm text-destructive" role="alert">
-              {recordsError}
-            </p>
-          )}
-          {records.length === 0 && !recordsError && (
-            <p className="text-sm text-muted-foreground">
-              No attendance yet — your verified hours will show up here.
-            </p>
-          )}
-          <ul className="space-y-2">
-            {records.map((record) => (
-              <li key={record.id} className="rounded-md border p-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{record.project_title || "Project"}</p>
-                    <p className="text-muted-foreground">
-                      {record.event_name ?? "Attendance session"} · {formatDate(record.check_in)}
-                    </p>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-1.5 text-sm">
-                    {record.check_out ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                        {formatHours(record.hours)}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">In progress</span>
-                    )}
-                  </span>
+        {records.length === 0 && !recordsError && (
+          <p className="text-sm text-slate-500">
+            No attendance yet — your verified hours will show up here.
+          </p>
+        )}
+        <ul className="space-y-2.5">
+          {records.map((record) => (
+            <li key={record.id} className="qadam-card p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-slate-900">{record.project_title || "Project"}</p>
+                  <p className="text-slate-500">
+                    {record.event_name ?? "Attendance session"} · {formatDate(record.check_in)}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatDateTime(record.check_in)} → {formatDateTime(record.check_out)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </main>
-    </>
+                <span className="flex shrink-0 items-center gap-1.5 text-sm">
+                  {record.check_out ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                      {formatHours(record.hours)}
+                    </>
+                  ) : (
+                    <span className="qadam-chip">In progress</span>
+                  )}
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">
+                {formatDateTime(record.check_in)} → {formatDateTime(record.check_out)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </main>
   );
 }

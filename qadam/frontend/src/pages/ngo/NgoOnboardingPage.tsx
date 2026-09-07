@@ -3,6 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useApi } from "@/hooks/useApi";
 import { createNgoProfile, uploadNgoLogo } from "@/lib/profiles";
 import NgoProfileForm from "@/components/NgoProfileForm";
+import { ui } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 /**
  * /ngo/onboarding (frontend-routes.md). Deliberately mounted OUTSIDE NgoGuard:
@@ -17,7 +19,7 @@ export default function NgoOnboardingPage() {
 
   if (!isLoaded || isResolving) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-muted-foreground">
+      <main className="flex min-h-screen items-center justify-center text-slate-500">
         Loading...
       </main>
     );
@@ -31,23 +33,25 @@ export default function NgoOnboardingPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold">Set up your organization</h1>
-        <p className="mt-2 text-muted-foreground">
-          Tell volunteers who you are and what you do. This completes your
-          organization profile and unlocks project creation.
+    <main className={cn(ui.pageNarrow, "space-y-8")}>
+      <header className="space-y-2">
+        <h1 className={ui.sectionTitle}>Set up your organization</h1>
+        <p className={ui.sectionSub}>
+          Tell volunteers who you are and what you do. This completes your organization profile and
+          unlocks project creation.
         </p>
       </header>
-      <NgoProfileForm
-        submitLabel="Create organization profile"
-        onUploadLogo={(file) => uploadNgoLogo(api, file)}
-        onSubmit={async (payload) => {
-          await createNgoProfile(api, payload);
-          // Full reload: guards re-evaluate against the fresh profile.
-          window.location.assign("/ngo/dashboard");
-        }}
-      />
+      <div className={ui.card}>
+        <NgoProfileForm
+          submitLabel="Create organization profile"
+          onUploadLogo={(file) => uploadNgoLogo(api, file)}
+          onSubmit={async (payload) => {
+            await createNgoProfile(api, payload);
+            // Full reload: guards re-evaluate against the fresh profile.
+            window.location.assign("/ngo/dashboard");
+          }}
+        />
+      </div>
     </main>
   );
 }

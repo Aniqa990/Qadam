@@ -11,9 +11,13 @@ function scoreColor(score: number): string {
 }
 
 function scoreBadgeBg(score: number): string {
-  if (score >= 0.7) return "bg-emerald-100 text-emerald-800";
-  if (score >= 0.4) return "bg-amber-100 text-amber-800";
-  return "bg-slate-100 text-slate-600";
+  if (score >= 0.7) {
+    return "bg-emerald-50 text-emerald-800 ring-2 ring-emerald-400/70 shadow-[0_0_18px_-2px_rgba(16,185,129,0.55)]";
+  }
+  if (score >= 0.4) {
+    return "bg-amber-50 text-amber-800 ring-1 ring-amber-300/60";
+  }
+  return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
 }
 
 /** Thin progress bar with colour tiers. */
@@ -90,7 +94,7 @@ export function ScoreBreakdown({ reasons }: { reasons: MatchReasons }) {
             {skills_match.matched.map((s) => (
               <span
                 key={s}
-                className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                className="qadam-chip"
               >
                 {s}
               </span>
@@ -128,7 +132,7 @@ export function CompositeBadge({ score }: { score: number }) {
   return (
     <div
       className={cn(
-        "flex h-14 w-14 flex-col items-center justify-center rounded-xl font-bold tabular-nums",
+        "flex h-14 w-14 flex-col items-center justify-center rounded-2xl font-bold tabular-nums transition-shadow",
         scoreBadgeBg(score)
       )}
     >
@@ -153,7 +157,7 @@ export default function MatchCard({
   rank: number;
 }) {
   return (
-    <div className="rounded-xl border bg-background p-5 transition-colors hover:border-ring">
+    <div className="qadam-card-interactive p-5">
       {/* Header: rank + name + composite badge */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">

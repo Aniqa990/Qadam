@@ -27,11 +27,11 @@ export default function RegistrationCard({
   const cancellable = onCancel !== undefined && registration.status === "confirmed" && projectOpen;
 
   return (
-    <article className="flex h-full flex-col gap-3 rounded-lg border bg-background p-4">
+    <article className="qadam-card-interactive flex h-full flex-col gap-3.5 p-5">
       <div className="flex items-start justify-between gap-2">
         <Link
           to={`/projects/${registration.project_id}`}
-          className="font-semibold leading-snug hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+          className="font-semibold leading-snug tracking-tight text-slate-900 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
         >
           {registration.project_title}
         </Link>
@@ -41,21 +41,21 @@ export default function RegistrationCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
         <span className="inline-flex items-center gap-1">
-          <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+          <CalendarDays className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
           {formatDateRange(registration.project_start_date, registration.project_end_date)}
         </span>
         {registration.project_location_name && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+            <MapPin className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
             {registration.project_location_name}
           </span>
         )}
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
+      <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+        <p className="text-xs text-slate-500">
           Registered on {formatDate(registration.registered_at)}
         </p>
         {cancellable && (
@@ -63,7 +63,7 @@ export default function RegistrationCard({
             type="button"
             disabled={busy}
             onClick={() => onCancel?.(registration)}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="qadam-btn-danger px-3 py-1.5 text-xs"
           >
             Cancel
           </button>

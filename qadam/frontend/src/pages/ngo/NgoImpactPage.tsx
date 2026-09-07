@@ -12,11 +12,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ClipboardList, Clock, Plus, TrendingUp, Users } from "lucide-react";
+import { ClipboardList, Clock, Plus, TrendingUp, Users, type LucideIcon } from "lucide-react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
 import { getNgoImpact } from "@/lib/impact";
-import { formatHours } from "@/lib/utils";
+import { ui } from "@/lib/ui";
+import { cn, formatHours } from "@/lib/utils";
 import type { NgoImpactMetrics } from "@/types/impact";
 
 /**
@@ -48,12 +49,12 @@ export default function NgoImpactPage() {
   const hasHours = metrics !== null && metrics.total_hours > 0;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <main className={cn(ui.page, "space-y-8")}>
       <div>
-        <h1 className="text-2xl font-bold">Impact Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your organization's verified community impact, measured from
-          registrations and QR attendance.
+        <h1 className={ui.sectionTitle}>Impact Dashboard</h1>
+        <p className={cn(ui.sectionSub, "mt-1")}>
+          Your organization's verified community impact, measured from registrations and QR
+          attendance.
         </p>
       </div>
 
@@ -66,10 +67,7 @@ export default function NgoImpactPage() {
             title="No impact to show yet"
             description="Create your first project — once volunteers register and check in with QR attendance, your verified impact metrics will appear here."
             action={
-              <Link
-                to="/ngo/projects/new"
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-              >
+              <Link to="/ngo/projects/new" className={ui.btnPrimary}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Create your first project
               </Link>
@@ -77,35 +75,37 @@ export default function NgoImpactPage() {
           />
         ) : (
           <>
-            {/* Summary cards */}
             <section aria-label="Impact summary" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <SummaryCard
                 icon={ClipboardList}
+                iconClass="bg-emerald-50 text-emerald-700"
                 label="Projects"
                 value={metrics.total_projects.toLocaleString()}
                 hint={`${metrics.active_projects} active · ${metrics.completed_projects} completed`}
               />
               <SummaryCard
                 icon={Users}
+                iconClass="bg-sky-50 text-sky-700"
                 label="Volunteers"
                 value={metrics.total_volunteers.toLocaleString()}
                 hint="with confirmed registrations"
               />
               <SummaryCard
                 icon={Clock}
+                iconClass="bg-amber-50 text-amber-700"
                 label="Verified Hours"
                 value={formatHours(metrics.total_hours)}
                 hint="from QR check-in and check-out"
               />
               <SummaryCard
                 icon={TrendingUp}
+                iconClass="bg-violet-50 text-violet-700"
                 label="Attendance Rate"
                 value={formatRate(metrics.attendance_rate)}
                 hint="volunteers who checked in at least once"
               />
             </section>
 
-            {/* Cause + location breakdowns */}
             <div className="grid gap-4 lg:grid-cols-2">
               <ChartCard
                 title="Hours by Cause"
@@ -147,7 +147,11 @@ export default function NgoImpactPage() {
                 chartLabel="Bar chart of verified volunteer hours by location"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metrics.by_location} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <BarChart
+                    data={metrics.by_location}
+                    layout="vertical"
+                    margin={{ left: 8, right: 16 }}
+                  >
                     <CartesianGrid horizontal={false} stroke={GRID_COLOR} />
                     <XAxis
                       type="number"
@@ -174,7 +178,6 @@ export default function NgoImpactPage() {
               </ChartCard>
             </div>
 
-            {/* Monthly trend */}
             <ChartCard
               title="Hours by Month"
               description="Verified volunteer hours per month of check-in."
@@ -247,23 +250,25 @@ function truncateLocation(location: string): string {
 
 function SummaryCard({
   icon: Icon,
+  iconClass,
   label,
   value,
   hint,
 }: {
-  icon: typeof Users;
+  icon: LucideIcon;
+  iconClass: string;
   label: string;
   value: string;
   hint: string;
 }) {
   return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-        <p className="text-sm font-medium">{label}</p>
+    <div className="qadam-card-interactive p-4 sm:p-5">
+      <div className={cn("mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl", iconClass)}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
-      <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{hint}</p>
     </div>
   );
 }
@@ -282,16 +287,16 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border p-4 sm:p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
+      <p className="mt-0.5 text-sm text-slate-500">{description}</p>
       {empty ? (
-        <div className="flex h-64 flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-6 text-center">
-          <Clock className="h-6 w-6 text-muted-foreground/60" aria-hidden="true" />
-          <p className="text-sm font-medium">No verified hours yet</p>
-          <p className="max-w-xs text-xs text-muted-foreground">
-            Hours appear here once volunteers check in and check out with QR
-            attendance on your projects.
+        <div className="mt-4 flex h-64 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
+          <Clock className="h-6 w-6 text-slate-400" aria-hidden="true" />
+          <p className="text-sm font-medium text-slate-700">No verified hours yet</p>
+          <p className="max-w-xs text-xs text-slate-500">
+            Hours appear here once volunteers check in and check out with QR attendance on your
+            projects.
           </p>
         </div>
       ) : (

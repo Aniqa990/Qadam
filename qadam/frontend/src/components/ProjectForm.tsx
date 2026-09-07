@@ -211,7 +211,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
 
   const inputClass = (field: keyof ProjectFormValues) =>
     cn(
-      "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      "mt-1 w-full qadam-input",
       errors[field] && "border-destructive focus:ring-destructive"
     );
 
@@ -224,8 +224,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       )}
 
       {/* Basics */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-4 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Basics
         </h2>
         <div>
@@ -243,7 +243,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
         </div>
 
         <div>
-          <label htmlFor="project-description" className="block text-sm font-medium">
+          <label htmlFor="project-description" className="qadam-label">
             Description <span className="text-destructive">*</span>
           </label>
           <textarea
@@ -261,7 +261,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="project-category" className="block text-sm font-medium">
+            <label htmlFor="project-category" className="qadam-label">
               Cause category <span className="text-destructive">*</span>
             </label>
             <select
@@ -280,7 +280,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
             {errors.category && <p className="mt-1 text-xs text-destructive">{errors.category}</p>}
           </div>
           <div>
-            <label htmlFor="project-capacity" className="block text-sm font-medium">
+            <label htmlFor="project-capacity" className="qadam-label">
               Volunteer capacity <span className="text-destructive">*</span>
             </label>
             <input
@@ -298,8 +298,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       </section>
 
       {/* Roles & skills */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-4 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Roles &amp; skills
         </h2>
         <TagInput
@@ -322,8 +322,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       </section>
 
       {/* Eligibility */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-4 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Eligibility
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -363,8 +363,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       </section>
 
       {/* Schedule */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-4 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Schedule
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -384,7 +384,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
             )}
           </div>
           <div>
-            <label htmlFor="project-end-date" className="block text-sm font-medium">
+            <label htmlFor="project-end-date" className="qadam-label">
               End date <span className="text-destructive">*</span>
             </label>
             <input
@@ -397,8 +397,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
             {errors.end_date && <p className="mt-1 text-xs text-destructive">{errors.end_date}</p>}
           </div>
           <div>
-            <label htmlFor="project-event-date" className="block text-sm font-medium">
-              Event date <span className="text-muted-foreground">(single-day events)</span>
+            <label htmlFor="project-event-date" className="qadam-label">
+              Event date <span className="text-slate-400">(single-day events)</span>
             </label>
             <input
               id="project-event-date"
@@ -409,7 +409,7 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
             />
           </div>
           <div>
-            <label htmlFor="project-hours" className="block text-sm font-medium">
+            <label htmlFor="project-hours" className="qadam-label">
               Hours per session
             </label>
             <input
@@ -431,8 +431,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       </section>
 
       {/* Location */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-2 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Location
         </h2>
         <LocationPicker value={values.location} onChange={(value) => set("location", value)} />
@@ -443,8 +443,8 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
       </section>
 
       {/* Contact */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="qadam-card space-y-4 p-5 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Volunteer contact
         </h2>
         <div>
@@ -462,22 +462,22 @@ const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function Pro
           {errors.whatsapp_group_url && (
             <p className="mt-1 text-xs text-destructive">{errors.whatsapp_group_url}</p>
           )}
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-slate-500">
             Shared with volunteers once they register.
           </p>
         </div>
       </section>
 
-      <div className="flex items-center gap-3 border-t pt-5">
+      <div className="flex items-center gap-3 border-t border-slate-100 pt-5">
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="qadam-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           {submitting ? "Saving..." : submitLabel}
         </button>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-slate-500">
           New projects are saved as drafts — publish them when you're ready.
         </p>
       </div>

@@ -6,6 +6,8 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
 import { getProject } from "@/lib/projects";
 import { getVolunteerMatches } from "@/lib/matching";
+import { ui } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 import type { ProjectDetail } from "@/types/project";
 import type { VolunteerMatch } from "@/types/matching";
 
@@ -46,53 +48,42 @@ export default function MatchingPage() {
   }, [load]);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-      {/* Back link */}
+    <main className={cn(ui.page, "space-y-6")}>
       <Link
         to="/ngo/projects"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-900"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to projects
       </Link>
 
-      {/* Loading */}
       {!error && matches === null && (
         <LoadingState label="Finding volunteer matches..." />
       )}
 
-      {/* Error */}
       {error && <ErrorState message={error} onRetry={load} />}
 
-      {/* Loaded */}
       {!error && matches !== null && project && (
         <>
-          {/* Page header */}
           <div>
-            <h1 className="text-2xl font-bold">Volunteer Matches</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {project.title}
-            </p>
+            <h1 className={ui.sectionTitle}>Volunteer Matches</h1>
+            <p className={cn(ui.sectionSub, "mt-1")}>{project.title}</p>
           </div>
 
-          {/* Match results */}
           {matches.length === 0 ? (
             <EmptyState
               title="No volunteer matches yet"
               description="No volunteers currently match this project's requirements. Try adjusting the required skills or eligibility, or check back as more volunteers join the platform."
               action={
-                <Link
-                  to={`/ngo/projects/${projectId}/edit`}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                >
+                <Link to={`/ngo/projects/${projectId}/edit`} className={ui.btnPrimary}>
                   Edit project
                 </Link>
               }
             />
           ) : (
             <>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+                <Users className="h-4 w-4 text-emerald-600" />
                 {matches.length} volunteer{matches.length !== 1 ? "s" : ""} ranked by match quality
               </div>
 

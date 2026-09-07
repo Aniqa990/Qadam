@@ -3,6 +3,8 @@ import { useApi } from "@/hooks/useApi";
 import { getNgoProfile, updateNgoProfile, uploadNgoLogo } from "@/lib/profiles";
 import type { NgoProfile } from "@/types/profile";
 import NgoProfileForm from "@/components/NgoProfileForm";
+import { ui } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 /**
  * /ngo/profile (frontend-routes.md) - edit the organization profile shown to
@@ -30,32 +32,38 @@ export default function NgoProfilePage() {
   }, [load]);
 
   return (
-    <>
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <header className="mb-8">
-          <h1 className="text-2xl font-bold">Organization profile</h1>
-          <p className="mt-2 text-muted-foreground">
-            This information is shown to volunteers alongside your projects.
-          </p>
-        </header>
+    <main className={cn(ui.pageNarrow, "space-y-8")}>
+      <header className="space-y-2">
+        <h1 className={ui.sectionTitle}>Organization profile</h1>
+        <p className={ui.sectionSub}>
+          This information is shown to volunteers alongside your projects.
+        </p>
+      </header>
 
-        {saved && (
-          <div className="mb-6 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm text-emerald-600" role="status">
-            Profile saved.
-          </div>
-        )}
-        {loadError && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-            {loadError}
-            <button type="button" onClick={load} className="ml-2 underline">
-              Try again
-            </button>
-          </div>
-        )}
+      {saved && (
+        <div
+          className="rounded-xl border border-emerald-100 bg-emerald-50 p-3.5 text-sm text-emerald-800"
+          role="status"
+        >
+          Profile saved.
+        </div>
+      )}
+      {loadError && (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700"
+          role="alert"
+        >
+          {loadError}
+          <button type="button" onClick={load} className="ml-2 font-medium underline">
+            Try again
+          </button>
+        </div>
+      )}
 
-        {loading ? (
-          <p className="text-muted-foreground">Loading profile...</p>
-        ) : (
+      {loading ? (
+        <p className="text-slate-500">Loading profile...</p>
+      ) : (
+        <div className={ui.card}>
           <NgoProfileForm
             key={profile?.id ?? "profile"}
             initial={profile}
@@ -67,8 +75,8 @@ export default function NgoProfilePage() {
               load();
             }}
           />
-        )}
-      </main>
-    </>
+        </div>
+      )}
+    </main>
   );
 }

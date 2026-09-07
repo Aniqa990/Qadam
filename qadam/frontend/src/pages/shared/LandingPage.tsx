@@ -19,6 +19,7 @@ import {
 import type { ProjectSummary } from "@/types/project";
 import { apiFetchList } from "@/lib/api";
 import { formatDateRange } from "@/lib/utils";
+import BrandLogo from "@/components/BrandLogo";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 
 /**
@@ -52,7 +53,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-slate-50/60 text-slate-900">
       <Navbar isSignedIn={isSignedIn} />
       <HeroSection />
       <ImpactStats />
@@ -70,17 +71,9 @@ function Navbar({ isSignedIn }: { isSignedIn: boolean | undefined }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 border-b border-emerald-100/60 bg-white/80 shadow-xs backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <Link to="/" className="flex items-center gap-2" aria-label="Qadam home">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
-            <Heart className="h-5 w-5 text-white" fill="white" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-slate-900">
-            Qadam
-          </span>
-        </Link>
+        <BrandLogo to="/" />
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-8 md:flex">
@@ -107,21 +100,18 @@ function Navbar({ isSignedIn }: { isSignedIn: boolean | undefined }) {
         {/* Desktop auth */}
         <div className="hidden items-center gap-3 md:flex">
           {isSignedIn ? (
-            <Link
-              to="/projects"
-              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-800"
-            >
+            <Link to="/projects" className="qadam-btn-primary">
               Go to Dashboard
             </Link>
           ) : (
             <>
               <SignInButton mode="modal">
-                <button className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
+                <button type="button" className="qadam-btn-ghost">
                   Sign in
                 </button>
               </SignInButton>
               <SignUpButton mode="modal">
-                <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-800">
+                <button type="button" className="qadam-btn-primary">
                   Get Started
                 </button>
               </SignUpButton>
@@ -168,21 +158,18 @@ function Navbar({ isSignedIn }: { isSignedIn: boolean | undefined }) {
           </nav>
           <div className="mt-4 flex flex-col gap-2">
             {isSignedIn ? (
-              <Link
-                to="/projects"
-                className="rounded-lg bg-emerald-700 px-4 py-2.5 text-center text-sm font-medium text-white"
-              >
+              <Link to="/projects" className="qadam-btn-primary w-full justify-center">
                 Go to Dashboard
               </Link>
             ) : (
               <>
                 <SignInButton mode="modal">
-                  <button className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">
+                  <button type="button" className="qadam-btn-secondary w-full justify-center">
                     Sign in
                   </button>
                 </SignInButton>
                 <SignUpButton mode="modal">
-                  <button className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white">
+                  <button type="button" className="qadam-btn-primary w-full justify-center">
                     Get Started
                   </button>
                 </SignUpButton>
@@ -199,8 +186,12 @@ function Navbar({ isSignedIn }: { isSignedIn: boolean | undefined }) {
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-800 to-slate-900">
-      {/* Subtle background texture */}
+    <section className="relative overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900">
+      {/* Emerald-to-teal overlay + subtle texture */}
+      <div
+        className="absolute inset-0 bg-gradient-to-tr from-emerald-950/40 via-transparent to-teal-800/30"
+        aria-hidden="true"
+      />
       <div className="absolute inset-0 opacity-10">
         <img
           src="https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=1920&q=60&auto=format"
@@ -232,14 +223,17 @@ function HeroSection() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <SignUpButton mode="modal">
-                <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-800 shadow-lg transition-all hover:bg-emerald-50 hover:shadow-xl">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-emerald-800 shadow-lg transition-all hover:-translate-y-px hover:bg-emerald-50 hover:shadow-xl active:scale-[0.98]"
+                >
                   Find Opportunities
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </SignUpButton>
               <a
                 href="#for-ngos"
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15"
               >
                 Partner Your NGO
               </a>
@@ -260,17 +254,20 @@ function HeroSection() {
                 className="h-full w-full object-cover"
               />
             </div>
-            {/* Floating stat card */}
-            <div className="absolute -bottom-6 -left-6 rounded-xl bg-white p-4 shadow-xl">
+            <div className="absolute -bottom-6 -left-6 rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl backdrop-blur-md">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
-                  <Users className="h-5 w-5 text-emerald-700" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                  <Users className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">2,400+</p>
+                  <p className="text-sm font-bold tabular-nums text-slate-900">2,400+</p>
                   <p className="text-xs text-slate-500">Active Volunteers</p>
                 </div>
               </div>
+            </div>
+            <div className="absolute -right-4 top-8 rounded-2xl border border-white/80 bg-white/95 px-3.5 py-2.5 shadow-lg backdrop-blur-md">
+              <p className="text-[11px] font-medium text-slate-500">Verified hours</p>
+              <p className="text-sm font-bold tabular-nums text-emerald-700">12,500+</p>
             </div>
           </div>
         </div>
@@ -373,7 +370,7 @@ function FeaturesSection() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group rounded-xl border border-slate-100 bg-white p-8 transition-all hover:border-slate-200 hover:shadow-lg"
+              className="qadam-card-interactive group p-8"
             >
               <div
                 className={`mb-5 inline-flex h-12 w-12 items-center justify-center rounded-lg ${feature.color}`}
@@ -446,7 +443,7 @@ function FeaturedProjects({
                 to be notified.
               </p>
               <SignUpButton mode="modal">
-                <button className="mt-6 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-800">
+                <button type="button" className="qadam-btn-primary mt-6">
                   Get Notified
                   <ArrowRight className="h-4 w-4" />
                 </button>
@@ -483,7 +480,7 @@ function LandingProjectCard({ project }: { project: ProjectSummary }) {
   return (
     <Link
       to={`/projects/${project.id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-lg"
+      className="qadam-card-interactive group flex h-full flex-col overflow-hidden p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
     >
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-2">
@@ -559,13 +556,19 @@ function CtaSection() {
 
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <SignUpButton mode="modal">
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-800 shadow-lg transition-all hover:bg-emerald-50 sm:w-auto">
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-emerald-800 shadow-lg transition-all hover:-translate-y-px hover:bg-emerald-50 hover:shadow-xl active:scale-[0.98] sm:w-auto"
+            >
               Join as Volunteer
               <ArrowRight className="h-4 w-4" />
             </button>
           </SignUpButton>
           <SignUpButton mode="modal">
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-white/30 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto">
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15 sm:w-auto"
+            >
               Register Your NGO
             </button>
           </SignUpButton>
@@ -584,12 +587,7 @@ function Footer() {
         <div className="grid gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="md:col-span-1">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700">
-                <Heart className="h-4 w-4 text-white" fill="white" />
-              </div>
-              <span className="text-lg font-bold text-white">Qadam</span>
-            </div>
+            <BrandLogo to="/" inverted size="sm" />
             <p className="mt-3 text-sm leading-relaxed">
               AI-powered volunteer platform connecting NGOs with the right
               people and measuring real community impact.

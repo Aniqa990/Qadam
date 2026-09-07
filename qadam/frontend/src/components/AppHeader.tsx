@@ -16,10 +16,9 @@ import {
   Users,
   X,
 } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 import { cn } from "@/lib/utils";
 import type { AppRole } from "@/types/auth";
-
-/* ─── Navigation link definitions ─── */
 
 interface NavItem {
   to: string;
@@ -45,25 +44,14 @@ const VOLUNTEER_LINKS: NavItem[] = [
   { to: "/volunteer/profile", label: "Profile", icon: User },
 ];
 
-/* ─── Shared NavLink styling ─── */
-
 function linkClass(isActive: boolean) {
   return cn(
-    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-    isActive
-      ? "bg-white text-emerald-800 shadow-sm"
-      : "text-emerald-100 hover:bg-emerald-600 hover:text-white"
+    isActive ? "qadam-nav-pill-active" : "qadam-nav-pill-idle"
   );
 }
 
-/* ─── Component ─── */
-
 /**
- * Unified professional header for all authenticated pages. Renders
- * role-aware navigation tabs on a solid green background with a clear
- * active-tab indicator (white) and a sign-out button on the far right.
- *
- * Rendered once by ProtectedLayout — never imported by individual pages.
+ * Frosted sticky header with pill nav — rendered once by ProtectedLayout.
  */
 export default function AppHeader({ role }: { role: AppRole }) {
   const { signOut } = useClerk();
@@ -79,16 +67,12 @@ export default function AppHeader({ role }: { role: AppRole }) {
 
   return (
     <header
-      className="sticky top-0 z-50 bg-emerald-700 shadow-sm"
+      className="sticky top-0 z-50 border-b border-emerald-100/60 bg-white/80 shadow-xs backdrop-blur-md"
       role="banner"
     >
-      <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2.5">
-        {/* Brand mark */}
-        <span className="mr-2 text-base font-bold tracking-tight text-white select-none">
-          Qadam
-        </span>
+      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
+        <BrandLogo size="sm" />
 
-        {/* Desktop nav */}
         <nav
           className="hidden items-center gap-1 md:flex"
           aria-label="Primary navigation"
@@ -99,44 +83,34 @@ export default function AppHeader({ role }: { role: AppRole }) {
               to={link.to}
               className={({ isActive }) => linkClass(isActive)}
             >
-              <link.icon className="h-4 w-4" aria-hidden="true" />
-              {link.label}
+              <link.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="hidden lg:inline">{link.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        {/* Sign out — pushed to far right */}
         <button
           type="button"
           onClick={handleLogout}
-          className="ml-auto hidden items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-800 hover:text-white md:inline-flex"
+          className="qadam-btn-ghost ml-auto hidden text-slate-500 md:inline-flex"
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
           Sign out
         </button>
 
-        {/* Mobile hamburger */}
         <button
           type="button"
           onClick={() => setMobileOpen((o) => !o)}
-          className="ml-auto rounded-md p-1.5 text-emerald-100 hover:bg-emerald-600 md:hidden"
+          className="qadam-btn-ghost ml-auto md:hidden"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
         >
-          {mobileOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
-      {/* Mobile dropdown */}
       {mobileOpen && (
-        <div className="border-t border-emerald-600 bg-emerald-700 px-4 pb-4 md:hidden">
-          <nav
-            className="flex flex-col gap-1 pt-2"
-            aria-label="Mobile navigation"
-          >
+        <div className="border-t border-emerald-100/60 bg-white/95 px-4 pb-4 backdrop-blur-md md:hidden">
+          <nav className="flex flex-col gap-1 pt-3" aria-label="Mobile navigation">
             {links.map((link) => (
               <NavLink
                 key={link.to}
@@ -152,7 +126,7 @@ export default function AppHeader({ role }: { role: AppRole }) {
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-3 flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-800 hover:text-white"
+            className="qadam-btn-ghost mt-3 w-full justify-start text-slate-500"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
             Sign out

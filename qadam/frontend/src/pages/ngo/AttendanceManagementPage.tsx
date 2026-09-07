@@ -14,7 +14,9 @@ import type { AttendanceEvent, AttendanceEventQr, AttendanceRecord } from "@/typ
 import type { ProjectDetail } from "@/types/project";
 import { formatDate, formatDateTime, formatHours } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { ui } from "@/lib/ui";
 import QrCodeDisplay from "@/components/QrCodeDisplay";
+import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 
 /** datetime-local input value (local time, no timezone suffix). */
 function toDatetimeLocal(date: Date): string {
@@ -30,9 +32,9 @@ function eventStatus(event: AttendanceEvent): "upcoming" | "live" | "ended" {
 }
 
 const STATUS_STYLES: Record<"upcoming" | "live" | "ended", string> = {
-  upcoming: "bg-sky-500/10 text-sky-700",
-  live: "bg-emerald-500/10 text-emerald-700",
-  ended: "bg-muted text-muted-foreground",
+  upcoming: "bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100",
+  live: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100",
+  ended: "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200",
 };
 
 /**
@@ -147,196 +149,221 @@ export default function AttendanceManagementPage() {
 
   if (loadError) {
     return (
-      <>
-        <main className="mx-auto max-w-3xl px-4 py-10">
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
-            {loadError}
-          </div>
-          <Link to="/ngo/projects" className="mt-4 inline-block text-sm underline">
-            Back to My Projects
-          </Link>
-        </main>
-      </>
+      <main className={cn(ui.pageNarrow, "space-y-4")}>
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+          role="alert"
+        >
+          {loadError}
+        </div>
+        <Link
+          to="/ngo/projects"
+          className="inline-block text-sm font-medium text-emerald-700 hover:underline"
+        >
+          Back to My Projects
+        </Link>
+      </main>
     );
   }
 
   return (
-    <>
-      <main className="mx-auto max-w-3xl space-y-8 px-4 py-10">
-        <header className="flex flex-wrap items-start justify-between gap-3">
+    <main className={cn(ui.pageNarrow, "space-y-8")}>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-500">
+            <Link
+              to={`/ngo/projects/${id}/edit`}
+              className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              ← Back to edit project
+            </Link>
+          </p>
+          <h1 className={cn(ui.sectionTitle, "mt-2")}>
+            Attendance {project ? `· ${project.title}` : ""}
+          </h1>
+          <p className={cn(ui.sectionSub, "mt-1")}>
+            Create a session, show its QR to volunteers, and stop attendance when the session ends.
+          </p>
+        </div>
+        {project && <ProjectStatusBadge status={project.status} />}
+      </header>
+
+      {!attendanceOpen && project && (
+        <div
+          className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600"
+          role="status"
+        >
+          {project.status === "draft"
+            ? "Publish this project before running attendance sessions."
+            : "This project is no longer active — attendance sessions are closed."}
+        </div>
+      )}
+
+      {/* Create session */}
+      <section className={cn(ui.card, "space-y-4")}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          New attendance session
+        </h2>
+        <form onSubmit={handleCreateEvent} className="space-y-4" noValidate>
           <div>
-            <p className="text-sm text-muted-foreground">
-              <Link to={`/ngo/projects/${id}/edit`} className="underline">
-                ← Back to edit project
-              </Link>
-            </p>
-            <h1 className="mt-2 text-2xl font-bold">
-              Attendance {project ? `· ${project.title}` : ""}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create a session, show its QR to volunteers, and stop attendance when the session ends.
-            </p>
+            <label htmlFor="event-name" className={ui.label}>
+              Session name
+            </label>
+            <input
+              id="event-name"
+              value={form.event_name}
+              onChange={(e) => setForm((prev) => ({ ...prev, event_name: e.target.value }))}
+              placeholder="e.g. Day 1 Morning Session"
+              disabled={!attendanceOpen}
+              className="qadam-input disabled:opacity-60"
+            />
           </div>
-          {project && (
-            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-              {project.status}
-            </span>
-          )}
-        </header>
-
-        {!attendanceOpen && project && (
-          <div className="rounded-md border bg-secondary/40 p-4 text-sm text-muted-foreground" role="status">
-            {project.status === "draft"
-              ? "Publish this project before running attendance sessions."
-              : "This project is no longer active — attendance sessions are closed."}
-          </div>
-        )}
-
-        {/* Create session */}
-        <section className="space-y-4 rounded-lg border p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            New attendance session
-          </h2>
-          <form onSubmit={handleCreateEvent} className="space-y-4" noValidate>
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label htmlFor="event-name" className="block text-sm font-medium">
-                Session name
+              <label htmlFor="event-date" className={ui.label}>
+                Date
               </label>
               <input
-                id="event-name"
-                value={form.event_name}
-                onChange={(e) => setForm((prev) => ({ ...prev, event_name: e.target.value }))}
-                placeholder="e.g. Day 1 Morning Session"
+                id="event-date"
+                type="date"
+                value={form.event_date}
+                onChange={(e) => setForm((prev) => ({ ...prev, event_date: e.target.value }))}
+                required
                 disabled={!attendanceOpen}
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+                className="qadam-input disabled:opacity-60"
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label htmlFor="event-date" className="block text-sm font-medium">
-                  Date
-                </label>
-                <input
-                  id="event-date"
-                  type="date"
-                  value={form.event_date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, event_date: e.target.value }))}
-                  required
-                  disabled={!attendanceOpen}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label htmlFor="window-start" className="block text-sm font-medium">
-                  Check-in opens
-                </label>
-                <input
-                  id="window-start"
-                  type="datetime-local"
-                  value={form.window_start}
-                  onChange={(e) => setForm((prev) => ({ ...prev, window_start: e.target.value }))}
-                  required
-                  disabled={!attendanceOpen}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label htmlFor="window-end" className="block text-sm font-medium">
-                  Check-in closes
-                </label>
-                <input
-                  id="window-end"
-                  type="datetime-local"
-                  value={form.window_end}
-                  onChange={(e) => setForm((prev) => ({ ...prev, window_end: e.target.value }))}
-                  required
-                  disabled={!attendanceOpen}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-                />
-              </div>
+            <div>
+              <label htmlFor="window-start" className={ui.label}>
+                Check-in opens
+              </label>
+              <input
+                id="window-start"
+                type="datetime-local"
+                value={form.window_start}
+                onChange={(e) => setForm((prev) => ({ ...prev, window_start: e.target.value }))}
+                required
+                disabled={!attendanceOpen}
+                className="qadam-input disabled:opacity-60"
+              />
             </div>
-            <button
-              type="submit"
-              disabled={busy || !attendanceOpen}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              {busy ? "Creating..." : "Create session"}
-            </button>
-          </form>
-          {actionError && (
-            <p className="text-sm text-destructive" role="alert">
-              {actionError}
-            </p>
-          )}
-        </section>
+            <div>
+              <label htmlFor="window-end" className={ui.label}>
+                Check-in closes
+              </label>
+              <input
+                id="window-end"
+                type="datetime-local"
+                value={form.window_end}
+                onChange={(e) => setForm((prev) => ({ ...prev, window_end: e.target.value }))}
+                required
+                disabled={!attendanceOpen}
+                className="qadam-input disabled:opacity-60"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={busy || !attendanceOpen}
+            className={cn(ui.btnPrimary, "disabled:cursor-not-allowed disabled:opacity-60")}
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {busy ? "Creating..." : "Create session"}
+          </button>
+        </form>
+        {actionError && (
+          <p className="text-sm text-destructive" role="alert">
+            {actionError}
+          </p>
+        )}
+      </section>
 
-        {/* Sessions */}
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Sessions
-          </h2>
-          {eventsError && (
-            <p className="text-sm text-destructive" role="alert">
-              {eventsError}
-            </p>
-          )}
-          {events.length === 0 && !eventsError && (
-            <p className="text-sm text-muted-foreground">
-              No attendance sessions yet — create one above to start checking volunteers in.
-            </p>
-          )}
-          <ul className="space-y-3">
-            {events.map((event) => {
-              const status = eventStatus(event);
-              return (
-                <li key={event.event_id} className="space-y-3 rounded-lg border p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{event.event_name ?? "Attendance session"}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDate(event.event_date)} · {formatDateTime(event.window_start)} –{" "}
-                        {formatDateTime(event.window_end)}
+      {/* Sessions */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Sessions</h2>
+        {eventsError && (
+          <p className="text-sm text-destructive" role="alert">
+            {eventsError}
+          </p>
+        )}
+        {events.length === 0 && !eventsError && (
+          <p className="text-sm text-slate-500">
+            No attendance sessions yet — create one above to start checking volunteers in.
+          </p>
+        )}
+        <ul className="space-y-3">
+          {events.map((event) => {
+            const status = eventStatus(event);
+            return (
+              <li key={event.event_id} className={cn(ui.card, "space-y-3")}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {event.event_name ?? "Attendance session"}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {formatDate(event.event_date)} · {formatDateTime(event.window_start)} –{" "}
+                      {formatDateTime(event.window_end)}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-medium",
+                      STATUS_STYLES[status]
+                    )}
+                  >
+                    {status === "upcoming" ? "Upcoming" : status === "live" ? "Live" : "Ended"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleShowQr(event.event_id)}
+                    className={cn(ui.btnSecondary, "text-sm")}
+                  >
+                    <QrCode className="h-4 w-4" aria-hidden="true" />
+                    {qrFor?.eventId === event.event_id ? "Hide QR" : "Show QR"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShowAttendees(event.event_id)}
+                    className={cn(ui.btnSecondary, "text-sm")}
+                  >
+                    <Users className="h-4 w-4" aria-hidden="true" />
+                    {attendeesFor?.eventId === event.event_id ? "Hide attendees" : "Attendees"}
+                  </button>
+                  {status !== "ended" && (
+                    <button
+                      type="button"
+                      onClick={() => handleStop(event)}
+                      className={cn(ui.btnDanger, "text-sm")}
+                    >
+                      <Square className="h-3.5 w-3.5" aria-hidden="true" />
+                      Stop attendance
+                    </button>
+                  )}
+                  <span className="text-sm text-slate-500">{event.checked_in_count} checked in</span>
+                </div>
+
+                {qrFor?.eventId === event.event_id && (
+                  <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 shadow-sm ring-2 ring-emerald-200/60">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        {status === "live" && (
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        )}
+                        <span
+                          className={cn(
+                            "relative inline-flex h-2.5 w-2.5 rounded-full",
+                            status === "live" ? "bg-emerald-500" : "bg-slate-400"
+                          )}
+                        />
+                      </span>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        {status === "live" ? "Live QR session" : "Session QR code"}
                       </p>
                     </div>
-                    <span className={cn("rounded-full px-3 py-1 text-xs font-medium", STATUS_STYLES[status])}>
-                      {status === "upcoming" ? "Upcoming" : status === "live" ? "Live" : "Ended"}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleShowQr(event.event_id)}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-secondary"
-                    >
-                      <QrCode className="h-4 w-4" aria-hidden="true" />
-                      {qrFor?.eventId === event.event_id ? "Hide QR" : "Show QR"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShowAttendees(event.event_id)}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-secondary"
-                    >
-                      <Users className="h-4 w-4" aria-hidden="true" />
-                      {attendeesFor?.eventId === event.event_id ? "Hide attendees" : "Attendees"}
-                    </button>
-                    {status !== "ended" && (
-                      <button
-                        type="button"
-                        onClick={() => handleStop(event)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-background px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/5"
-                      >
-                        <Square className="h-3.5 w-3.5" aria-hidden="true" />
-                        Stop attendance
-                      </button>
-                    )}
-                    <span className="text-sm text-muted-foreground">
-                      {event.checked_in_count} checked in
-                    </span>
-                  </div>
-
-                  {qrFor?.eventId === event.event_id && (
                     <QrCodeDisplay
                       data={qrFor.qr.qr_data}
                       caption={
@@ -345,46 +372,46 @@ export default function AttendanceManagementPage() {
                           : "Volunteers scan this with Qadam → Scan QR."
                       }
                     />
-                  )}
+                  </div>
+                )}
 
-                  {attendeesFor?.eventId === event.event_id && (
-                    <div className="overflow-x-auto rounded-md border">
-                      {attendeesFor.records.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">
-                          Nobody has checked in for this session yet.
-                        </p>
-                      ) : (
-                        <table className="w-full text-left text-sm">
-                          <thead className="bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
-                            <tr>
-                              <th className="px-4 py-2 font-medium">Volunteer</th>
-                              <th className="px-4 py-2 font-medium">Check-in</th>
-                              <th className="px-4 py-2 font-medium">Check-out</th>
-                              <th className="px-4 py-2 font-medium">Hours</th>
+                {attendeesFor?.eventId === event.event_id && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    {attendeesFor.records.length === 0 ? (
+                      <p className="p-4 text-sm text-slate-500">
+                        Nobody has checked in for this session yet.
+                      </p>
+                    ) : (
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-4 py-2.5 font-medium">Volunteer</th>
+                            <th className="px-4 py-2.5 font-medium">Check-in</th>
+                            <th className="px-4 py-2.5 font-medium">Check-out</th>
+                            <th className="px-4 py-2.5 font-medium">Hours</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {attendeesFor.records.map((record) => (
+                            <tr key={record.id} className="border-t border-slate-100">
+                              <td className="px-4 py-2.5">{record.volunteer_name || "—"}</td>
+                              <td className="px-4 py-2.5">{formatDateTime(record.check_in)}</td>
+                              <td className="px-4 py-2.5">{formatDateTime(record.check_out)}</td>
+                              <td className="px-4 py-2.5">
+                                {record.check_out ? formatHours(record.hours) : "In progress"}
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {attendeesFor.records.map((record) => (
-                              <tr key={record.id} className="border-t">
-                                <td className="px-4 py-2">{record.volunteer_name || "—"}</td>
-                                <td className="px-4 py-2">{formatDateTime(record.check_in)}</td>
-                                <td className="px-4 py-2">{formatDateTime(record.check_out)}</td>
-                                <td className="px-4 py-2">
-                                  {record.check_out ? formatHours(record.hours) : "In progress"}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      </main>
-    </>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    </main>
   );
 }

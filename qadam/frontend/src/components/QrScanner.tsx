@@ -163,12 +163,22 @@ useEffect(() => {
 
   return (
     <div>
-      <div
-        id={elementId}
-        className="overflow-hidden rounded-lg border border-input bg-secondary/40"
-        aria-label="QR code camera view"
-      />
-      <p className="mt-2 text-xs text-muted-foreground" role="status">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-xs ring-1 ring-emerald-100/60">
+        <div
+          id={elementId}
+          className="overflow-hidden bg-slate-100/80"
+          aria-label="QR code camera view"
+        />
+        {status === "running" && (
+          <div
+            className="pointer-events-none absolute inset-x-[18%] top-[12%] h-[76%] overflow-hidden rounded-lg"
+            aria-hidden="true"
+          >
+            <div className="absolute inset-x-0 top-0 h-0.5 animate-scan-laser bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]" />
+          </div>
+        )}
+      </div>
+      <p className="mt-3 text-xs text-slate-500" role="status">
         {status === "starting" && "Starting camera..."}
         {status === "running" && "Camera is live — point it at the attendance QR code."}
         {status === "denied" && "Camera access was blocked. Allow camera permission, or enter the code manually below."}
