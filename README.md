@@ -1,6 +1,6 @@
 # Qadam
 
-![Qadam logo](qadam/frontend/src/logo.jpeg)
+![Qadam logo](qadam/frontend/src/logo.png)
 
 AI-powered social-good volunteer platform connecting NGOs with suitable
 volunteers and measuring community impact.
