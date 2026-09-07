@@ -122,19 +122,19 @@ export default function FloatingAssistant() {
     <div className="fixed bottom-4 right-4 z-[60]">
       {/* Chat panel */}
       {open && (
-        <div className="mb-3 flex h-[500px] w-[380px] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl">
+        <div className="mb-3 flex h-[500px] w-[380px] flex-col overflow-hidden rounded-2xl border border-emerald-100/80 bg-white/90 shadow-xl backdrop-blur-md">
           {/* Panel header */}
-          <div className="flex items-center justify-between bg-emerald-700 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-emerald-100/60 bg-emerald-50/80 px-4 py-3">
             <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4 text-white" aria-hidden="true" />
-              <span className="text-sm font-semibold text-white">
+              <MessageCircle className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+              <span className="text-sm font-semibold text-emerald-900">
                 Qadam Assistant
               </span>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded p-1 text-emerald-200 hover:bg-emerald-600 hover:text-white"
+              className="rounded-lg p-1 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-900"
               aria-label="Close assistant"
             >
               <X className="h-4 w-4" />
@@ -224,7 +224,7 @@ export default function FloatingAssistant() {
           </div>
 
           {/* Input */}
-          <div className="flex items-center gap-2 border-t px-3 py-2.5">
+          <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2.5">
             <input
               ref={inputRef}
               type="text"
@@ -233,13 +233,13 @@ export default function FloatingAssistant() {
               onKeyDown={handleKeyDown}
               placeholder="Ask a question..."
               disabled={sending}
-              className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              className="qadam-input flex-1 py-2 disabled:opacity-50"
             />
             <button
               type="button"
               onClick={sendMessage}
               disabled={sending || !input.trim()}
-              className="rounded-md bg-emerald-700 p-2 text-white hover:bg-emerald-800 disabled:opacity-50"
+              className="rounded-xl bg-emerald-700 p-2.5 text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:opacity-50"
               aria-label="Send message"
             >
               <Send className="h-4 w-4" />

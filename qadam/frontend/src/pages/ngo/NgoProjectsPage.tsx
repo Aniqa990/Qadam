@@ -5,6 +5,7 @@ import ProjectCard from "@/components/ProjectCard";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useApi } from "@/hooks/useApi";
 import { listProjects } from "@/lib/projects";
+import { ui } from "@/lib/ui";
 import type { PaginationInfo, ProjectStatus, ProjectSummary } from "@/types/project";
 import { cn } from "@/lib/utils";
 
@@ -52,120 +53,120 @@ export default function NgoProjectsPage() {
   }
 
   return (
-    <>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold">My projects</h1>
-          <Link
-            to="/ngo/projects/new"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Create project
-          </Link>
+    <main className={cn(ui.page, "space-y-6")}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className={ui.sectionTitle}>My projects</h1>
+          <p className={ui.sectionSub}>Manage drafts, live opportunities, and completed work.</p>
         </div>
+        <Link to="/ngo/projects/new" className={ui.btnPrimary}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Create project
+        </Link>
+      </div>
 
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter projects by status">
-          {STATUS_FILTERS.map((filter) => (
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter projects by status">
+        {STATUS_FILTERS.map((filter) => {
+          const active = status === filter.value;
+          return (
             <button
               key={filter.label}
               type="button"
               onClick={() => changeStatus(filter.value)}
-              aria-pressed={status === filter.value}
+              aria-pressed={active}
               className={cn(
-                "rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground",
-                status === filter.value && "border-transparent bg-primary text-primary-foreground hover:opacity-90"
+                "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               )}
             >
               {filter.label}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {error && <ErrorState message={error} onRetry={load} />}
-        {!error && projects === null && <LoadingState label="Loading your projects..." />}
+      {error && <ErrorState message={error} onRetry={load} />}
+      {!error && projects === null && <LoadingState label="Loading your projects..." />}
 
-        {!error && projects !== null && pagination !== null && (
-          <>
-            {projects.length === 0 ? (
-              status === undefined ? (
-                <EmptyState
-                  title="No projects yet"
-                  description="Create your first project to start recruiting volunteers."
-                  action={
-                    <Link
-                      to="/ngo/projects/new"
-                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      Create project
-                    </Link>
-                  }
-                />
-              ) : (
-                <EmptyState
-                  title={`No ${status} projects`}
-                  description="Try a different status filter."
-                  action={
+      {!error && projects !== null && pagination !== null && (
+        <>
+          {projects.length === 0 ? (
+            status === undefined ? (
+              <EmptyState
+                title="No projects yet"
+                description="Create your first project to start recruiting volunteers."
+                action={
+                  <Link to="/ngo/projects/new" className={ui.btnPrimary}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Create project
+                  </Link>
+                }
+              />
+            ) : (
+              <EmptyState
+                title={`No ${status} projects`}
+                description="Try a different status filter."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => changeStatus(undefined)}
+                    className={ui.btnSecondary}
+                  >
+                    Clear filter
+                  </button>
+                }
+              />
+            )
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                {projects.map((project) => (
+                  <div key={project.id} className="space-y-2">
+                    <ProjectCard project={project} />
+                    {(project.status === "upcoming" || project.status === "active") && (
+                      <Link
+                        to={`/ngo/matching/${project.id}`}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        Find Matches
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-sm">
+                  <p className="text-slate-500">
+                    Page {pagination.page} of {pagination.totalPages} · {pagination.total} projects
+                  </p>
+                  <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => changeStatus(undefined)}
-                      className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-secondary"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={pagination.page <= 1}
+                      className={cn(ui.btnSecondary, "text-sm disabled:cursor-not-allowed disabled:opacity-50")}
                     >
-                      Clear filter
+                      Previous
                     </button>
-                  }
-                />
-              )
-            ) : (
-              <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {projects.map((project) => (
-                    <div key={project.id} className="space-y-2">
-                      <ProjectCard project={project} />
-                      {(project.status === "upcoming" || project.status === "active") && (
-                        <Link
-                          to={`/ngo/matching/${project.id}`}
-                          className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-                        >
-                          <Users className="h-3.5 w-3.5" />
-                          Find Matches
-                        </Link>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t pt-4 text-sm">
-                    <p className="text-muted-foreground">
-                      Page {pagination.page} of {pagination.totalPages} · {pagination.total} projects
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={pagination.page <= 1}
-                        className="rounded-md border border-input bg-background px-3 py-1.5 font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                        disabled={pagination.page >= pagination.totalPages}
-                        className="rounded-md border border-input bg-background px-3 py-1.5 font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                      disabled={pagination.page >= pagination.totalPages}
+                      className={cn(ui.btnSecondary, "text-sm disabled:cursor-not-allowed disabled:opacity-50")}
+                    >
+                      Next
+                    </button>
                   </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </main>
-    </>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </main>
   );
 }

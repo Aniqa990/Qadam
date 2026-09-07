@@ -127,24 +127,27 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
 
   const inputClass = (field: keyof VolunteerProfileFormValues) =>
     cn(
-      "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      "mt-1 w-full qadam-input",
       errors[field] && "border-destructive focus:ring-destructive"
     );
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-8">
       {submitError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+        <div
+          className="rounded-2xl border border-red-100 bg-red-50/50 p-3.5 text-sm text-red-700"
+          role="alert"
+        >
           {submitError}
         </div>
       )}
 
       {/* About you */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">About you</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">About you</h2>
         <div>
-          <label htmlFor="volunteer-name" className="block text-sm font-medium">
-            Full name <span className="text-destructive">*</span>
+          <label htmlFor="volunteer-name" className="qadam-label">
+            Full name <span className="text-red-600">*</span>
           </label>
           <input
             id="volunteer-name"
@@ -153,11 +156,11 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
             placeholder="Jane Doe"
             className={inputClass("full_name")}
           />
-          {errors.full_name && <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>}
+          {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="volunteer-phone" className="block text-sm font-medium">
+            <label htmlFor="volunteer-phone" className="qadam-label">
               Phone
             </label>
             <input
@@ -169,7 +172,7 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
             />
           </div>
           <div>
-            <label htmlFor="volunteer-age" className="block text-sm font-medium">
+            <label htmlFor="volunteer-age" className="qadam-label">
               Age
             </label>
             <input
@@ -183,9 +186,9 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
               className={inputClass("age")}
             />
             {errors.age ? (
-              <p className="mt-1 text-xs text-destructive">{errors.age}</p>
+              <p className="mt-1 text-xs text-red-600">{errors.age}</p>
             ) : (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-slate-500">
                 Some projects set a minimum age requirement.
               </p>
             )}
@@ -195,7 +198,7 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
 
       {/* Skills & interests */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Skills &amp; interests
         </h2>
         <TagInput
@@ -206,7 +209,7 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
           placeholder="e.g. teaching — press Enter to add"
           hint="Skills power volunteer matching later. Add up to 30."
         />
-        {errors.skills && <p className="text-xs text-destructive">{errors.skills}</p>}
+        {errors.skills && <p className="text-xs text-red-600">{errors.skills}</p>}
         <TagInput
           id="volunteer-interests"
           label="Interests"
@@ -215,36 +218,32 @@ export default function VolunteerProfileForm({ initial, submitLabel, onSubmit }:
           placeholder="e.g. education — press Enter to add"
           hint="Causes you care about."
         />
-        {errors.interests && <p className="text-xs text-destructive">{errors.interests}</p>}
+        {errors.interests && <p className="text-xs text-red-600">{errors.interests}</p>}
       </section>
 
       {/* Location */}
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Location</h2>
-        <div className="flex items-center gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Location</h2>
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={useMyLocation}
             disabled={locating}
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            className="qadam-btn-secondary text-sm"
           >
             <LocateFixed className="h-4 w-4" aria-hidden="true" />
             {locating ? "Locating..." : "Use my location"}
           </button>
-          <p className="text-xs text-muted-foreground">Optional, but nearby matches rank higher.</p>
+          <p className="text-xs text-slate-500">Optional, but nearby matches rank higher.</p>
         </div>
         <LocationPicker value={values.location} onChange={(value) => set("location", value)} />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-slate-500">
           The city/country label is resolved automatically from the exact pin.
         </p>
       </section>
 
-      <div className="flex items-center gap-3 border-t pt-5">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+      <div className="flex items-center gap-3 border-t border-slate-100 pt-5">
+        <button type="submit" disabled={submitting} className="qadam-btn-primary">
           {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           {submitting ? "Saving..." : submitLabel}
         </button>

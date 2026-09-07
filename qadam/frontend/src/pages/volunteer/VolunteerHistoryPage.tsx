@@ -31,12 +31,12 @@ export default function VolunteerHistoryPage() {
   }, [load]);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+    <main className="qadam-page-narrow space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">My history</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The last events you attended and completed. Hours are verified from your
-          QR check-in and check-out.
+        <h1 className="qadam-section-title">My history</h1>
+        <p className="qadam-section-sub mt-1.5">
+          The last events you attended and completed. Hours are verified from your QR check-in and
+          check-out.
         </p>
       </div>
 
@@ -50,19 +50,20 @@ export default function VolunteerHistoryPage() {
               title="No completed events yet"
               description="Once you check in and check out at an event, it will appear here with your verified hours."
               action={
-                <Link
-                  to="/volunteer/scan"
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                >
+                <Link to="/volunteer/scan" className="qadam-btn-primary">
                   <QrCode className="h-4 w-4" aria-hidden="true" />
                   Scan an attendance QR
                 </Link>
               }
             />
           ) : (
-            <ul className="space-y-3">
+            <ul className="relative space-y-4 before:absolute before:bottom-4 before:left-[1.15rem] before:top-4 before:w-px before:bg-emerald-100">
               {history.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className="relative pl-10">
+                  <span
+                    className="absolute left-3 top-6 h-2.5 w-2.5 rounded-full bg-emerald-600 ring-4 ring-emerald-50"
+                    aria-hidden="true"
+                  />
                   <AttendanceHistoryCard item={item} />
                 </li>
               ))}

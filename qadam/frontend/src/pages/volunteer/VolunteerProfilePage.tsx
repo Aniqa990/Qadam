@@ -38,41 +38,49 @@ export default function VolunteerProfilePage() {
   }, [load]);
 
   return (
-    <>
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <header className="mb-8">
-          <h1 className="text-2xl font-bold">Your profile</h1>
-          <p className="mt-2 text-muted-foreground">
-            {profile?.location_name
-              ? `${profile.location_name} · keeping your location current improves matching.`
-              : "Update your skills, interests, and location to get better matches."}
-          </p>
-        </header>
+    <main className="qadam-page-narrow">
+      <header className="mb-8">
+        <h1 className="qadam-section-title">Your profile</h1>
+        <p className="qadam-section-sub mt-1.5">
+          {profile?.location_name
+            ? `${profile.location_name} · keeping your location current improves matching.`
+            : "Update your skills, interests, and location to get better matches."}
+        </p>
+      </header>
 
-        {saved && (
-          <div className="mb-6 flex items-center justify-between rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm text-emerald-600" role="status">
-            <span>Profile saved. Changes to skills or interests will update your matching score.</span>
-            <button
-              type="button"
-              onClick={() => setSaved(false)}
-              className="ml-3 shrink-0 rounded p-0.5 text-emerald-600 hover:bg-emerald-500/10"
-              aria-label="Dismiss"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-        {loadError && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-            {loadError}
-            <button type="button" onClick={load} className="ml-2 underline">
-              Try again
-            </button>
-          </div>
-        )}
+      {saved && (
+        <div
+          className="mb-6 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3.5 text-sm text-emerald-700"
+          role="status"
+        >
+          <span>
+            Profile saved. Changes to skills or interests will update your matching score.
+          </span>
+          <button
+            type="button"
+            onClick={() => setSaved(false)}
+            className="ml-3 shrink-0 rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      {loadError && (
+        <div
+          className="mb-6 rounded-2xl border border-red-100 bg-red-50/50 p-3.5 text-sm text-red-700"
+          role="alert"
+        >
+          {loadError}
+          <button type="button" onClick={load} className="ml-2 font-medium underline">
+            Try again
+          </button>
+        </div>
+      )}
 
+      <div className="qadam-card p-5 sm:p-6">
         {loading ? (
-          <p className="text-muted-foreground">Loading profile...</p>
+          <p className="text-sm text-slate-500">Loading profile...</p>
         ) : (
           <VolunteerProfileForm
             key={profile?.id ?? "profile"}
@@ -85,7 +93,7 @@ export default function VolunteerProfilePage() {
             }}
           />
         )}
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

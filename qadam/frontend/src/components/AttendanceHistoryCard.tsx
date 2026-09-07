@@ -38,42 +38,44 @@ export default function AttendanceHistoryCard({ item }: { item: AttendanceHistor
   }
 
   return (
-    <article className="rounded-lg border bg-background">
+    <article className="qadam-card overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((open) => !open)}
         aria-expanded={expanded}
         aria-controls={detailsId}
-        className="flex w-full items-center justify-between gap-3 rounded-lg p-4 text-left transition-colors hover:bg-secondary/50 focus:outline-none focus:ring-2 focus:ring-ring"
+        className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-emerald-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
       >
         <div className="min-w-0">
-          <p className="font-semibold leading-snug">{item.project_title}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="font-semibold leading-snug tracking-tight text-slate-900">
+            {item.project_title}
+          </p>
+          <p className="text-xs text-slate-500">
             {item.event_name ?? "Volunteer session"} · {formatDate(item.event_date)}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
             {item.ngo_name && (
               <span className="inline-flex items-center gap-1">
-                <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <Building2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
                 {item.ngo_name}
               </span>
             )}
             {item.location_name && (
               <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                <MapPin className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
                 {item.location_name}
               </span>
             )}
           </div>
         </div>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          <span className="qadam-chip">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
             {formatHours(item.hours)}
           </span>
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform",
+              "h-4 w-4 text-slate-400 transition-transform",
               expanded && "rotate-180"
             )}
             aria-hidden="true"
@@ -82,30 +84,30 @@ export default function AttendanceHistoryCard({ item }: { item: AttendanceHistor
       </button>
 
       {expanded && (
-        <div id={detailsId} className="border-t px-4 py-3 text-sm">
+        <div id={detailsId} className="border-t border-slate-100 px-4 py-4 text-sm">
           <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Checked in</dt>
-              <dd>{formatDateTime(item.check_in)}</dd>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Checked in</dt>
+              <dd className="mt-0.5 text-slate-800">{formatDateTime(item.check_in)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Checked out</dt>
-              <dd>{formatDateTime(item.check_out)}</dd>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Checked out</dt>
+              <dd className="mt-0.5 text-slate-800">{formatDateTime(item.check_out)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Event date</dt>
-              <dd>{formatDate(item.event_date)}</dd>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Event date</dt>
+              <dd className="mt-0.5 text-slate-800">{formatDate(item.event_date)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Hours contributed</dt>
-              <dd className="font-semibold text-emerald-700">{formatHours(item.hours)}</dd>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Hours contributed</dt>
+              <dd className="mt-0.5 font-semibold text-emerald-700">{formatHours(item.hours)}</dd>
             </div>
           </dl>
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
             <Link
               to={`/projects/${item.project_id}`}
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+              className="qadam-btn-ghost text-sm text-emerald-700"
             >
               View project
             </Link>
@@ -113,7 +115,7 @@ export default function AttendanceHistoryCard({ item }: { item: AttendanceHistor
               type="button"
               onClick={handleGenerateCertificate}
               disabled={certLoading}
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+              className="qadam-btn-secondary"
             >
               {certLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -125,7 +127,7 @@ export default function AttendanceHistoryCard({ item }: { item: AttendanceHistor
           </div>
 
           {certError && (
-            <p className="mt-2 text-xs text-destructive" role="alert">
+            <p className="mt-2 text-xs text-red-600" role="alert">
               {certError}
             </p>
           )}

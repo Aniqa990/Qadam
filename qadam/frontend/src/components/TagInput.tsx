@@ -46,10 +46,10 @@ export default function TagInput({
 
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium">
+      <label htmlFor={id} className="qadam-label">
         {label}
       </label>
-      <div className="mt-1 flex gap-2">
+      <div className="flex gap-2">
         <input
           id={id}
           value={draft}
@@ -61,30 +61,30 @@ export default function TagInput({
             }
           }}
           placeholder={placeholder}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="qadam-input w-full"
         />
         <button
           type="button"
           onClick={() => addTags(draft)}
-          className="shrink-0 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-secondary"
+          className="qadam-btn-secondary shrink-0 px-3"
         >
           Add
         </button>
       </div>
-      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
       {values.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={`${label} entries`}>
           {values.map((value, index) => (
             <li
               key={`${value}-${index}`}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
+              className="qadam-chip"
             >
               {value}
               <button
                 type="button"
                 aria-label={`Remove ${value}`}
                 onClick={() => onChange(values.filter((_, i) => i !== index))}
-                className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                className="rounded-full p-0.5 text-emerald-600 hover:bg-emerald-100"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>

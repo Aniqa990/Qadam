@@ -65,7 +65,7 @@ export default function ProjectRegistrationPanel({
   }
 
   return (
-    <section className="space-y-3 rounded-lg border p-4" aria-label="Registration">
+    <section className="qadam-card space-y-3 p-5" aria-label="Registration">
       {/*
        * Project-closed gate: when the project is completed/cancelled, the
        * panel is read-only regardless of registration status. This prevents
@@ -76,13 +76,13 @@ export default function ProjectRegistrationPanel({
        */}
       {!projectOpen && (confirmed || registration?.status === "cancelled") ? (
         <>
-          <p className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-500">
             <Clock className="h-5 w-5" aria-hidden="true" />
             {project.status === "completed"
               ? "This project has ended"
               : "This project was cancelled"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-slate-500">
             {confirmed
               ? `You were registered for this project (registered on ${formatDate(registration?.registered_at)}).`
               : `Your registration was cancelled before the project ended.`}
@@ -94,7 +94,7 @@ export default function ProjectRegistrationPanel({
             <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
             You're registered
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-slate-500">
             Registered on {formatDate(registration?.registered_at)}. The organizer will see you on
             the volunteer list.
           </p>
@@ -102,7 +102,7 @@ export default function ProjectRegistrationPanel({
             type="button"
             onClick={handleCancel}
             disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="qadam-btn-danger w-full"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             Cancel registration
@@ -110,7 +110,7 @@ export default function ProjectRegistrationPanel({
         </>
       ) : registration?.status === "cancelled" ? (
         <>
-          <p className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-500">
             <XCircle className="h-5 w-5" aria-hidden="true" />
             Your registration was cancelled
           </p>
@@ -119,13 +119,13 @@ export default function ProjectRegistrationPanel({
               type="button"
               onClick={handleRegister}
               disabled={busy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="qadam-btn-primary w-full"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               Register again
             </button>
           ) : (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-500">
               {!projectOpen
                 ? "This project is no longer open for registration."
                 : "This project is currently at capacity."}
@@ -133,26 +133,26 @@ export default function ProjectRegistrationPanel({
           )}
         </>
       ) : !projectOpen ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-slate-500">
           This project is <strong>{project.status}</strong> and no longer accepts registrations.
         </p>
       ) : atCapacity ? (
         <>
-          <p className="text-sm font-medium">This project is at capacity</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm font-medium text-slate-800">This project is at capacity</p>
+          <p className="text-xs text-slate-500">
             All {project.capacity} volunteer spots are taken.
           </p>
         </>
       ) : (
         <>
-          <p className="text-sm font-medium">
+          <p className="text-sm font-medium text-slate-800">
             {project.capacity - project.registered_count} of {project.capacity} spots left
           </p>
           <button
             type="button"
             onClick={handleRegister}
             disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="qadam-btn-primary w-full"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             Register for this project
@@ -161,7 +161,7 @@ export default function ProjectRegistrationPanel({
       )}
 
       {actionError && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-red-600" role="alert">
           {actionError}
         </p>
       )}

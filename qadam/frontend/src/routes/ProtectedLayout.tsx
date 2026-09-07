@@ -44,8 +44,8 @@ export default function ProtectedLayout() {
   const showNav = onboardingComplete;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {showNav && <AppHeader role={role} />}
+    <div className="min-h-screen bg-slate-50/60 text-foreground">
+      {showNav && role && <AppHeader role={role} />}
       <Outlet />
       {showNav && <FloatingAssistant />}
     </div>

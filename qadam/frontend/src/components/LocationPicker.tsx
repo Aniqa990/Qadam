@@ -242,7 +242,7 @@ export default function LocationPicker({ value, onChange, readOnly = false, clas
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search a city or place..."
-            className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="qadam-input w-full py-2.5 pl-9 pr-9"
           />
           {searching && (
             <Loader2
@@ -298,7 +298,7 @@ export default function LocationPicker({ value, onChange, readOnly = false, clas
         ref={containerRef}
         role="application"
         aria-label={readOnly ? "Project location map" : "Location map - search, click, or drag to set the pin"}
-        className={cn("h-72 w-full rounded-md border border-input", className)}
+        className={cn("h-72 w-full rounded-2xl border border-slate-200", className)}
       />
       <p className="mt-1.5 text-xs text-muted-foreground">
         {readOnly ? (

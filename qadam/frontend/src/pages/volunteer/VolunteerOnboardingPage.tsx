@@ -17,7 +17,7 @@ export default function VolunteerOnboardingPage() {
 
   if (!isLoaded || isResolving) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-muted-foreground">
+      <main className="flex min-h-screen items-center justify-center text-slate-500">
         Loading...
       </main>
     );
@@ -31,22 +31,25 @@ export default function VolunteerOnboardingPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
+    <main className="qadam-page-narrow">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold">Welcome to Qadam 👋</h1>
-        <p className="mt-2 text-muted-foreground">
-          Tell us a bit about yourself so we can match you with volunteer
-          opportunities that fit your skills and interests.
+        <p className="text-sm font-semibold text-emerald-700">Welcome to Qadam</p>
+        <h1 className="qadam-section-title mt-1">Tell us about yourself</h1>
+        <p className="qadam-section-sub mt-1.5">
+          Share your skills and interests so we can match you with volunteer opportunities that
+          fit.
         </p>
       </header>
-      <VolunteerProfileForm
-        submitLabel="Create my profile"
-        onSubmit={async (payload) => {
-          await createVolunteerProfile(api, payload);
-          // Full reload: guards re-evaluate against the fresh profile.
-          window.location.assign("/volunteer/projects");
-        }}
-      />
+      <div className="qadam-card p-5 sm:p-6">
+        <VolunteerProfileForm
+          submitLabel="Create my profile"
+          onSubmit={async (payload) => {
+            await createVolunteerProfile(api, payload);
+            // Full reload: guards re-evaluate against the fresh profile.
+            window.location.assign("/volunteer/projects");
+          }}
+        />
+      </div>
     </main>
   );
 }

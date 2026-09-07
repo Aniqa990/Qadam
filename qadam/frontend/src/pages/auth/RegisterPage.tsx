@@ -1,16 +1,12 @@
 import { SignUp, useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { Building2, HeartHandshake } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import AuthShell from "@/components/AuthShell";
 import type { AppRole } from "@/types/auth";
 
 /**
- * frontend-routes.md "/register": role selection happens at sign-up time
- * via Clerk's unsafeMetadata (client-writable), which the backend's
- * user.created webhook then promotes to publicMetadata (server-only)
- * after creating the matching volunteers/ngos row - see
- * auth.service.createProfileForNewUser and AGENTS.md "Clerk Auth
- * Migration". This is why role must be picked BEFORE rendering <SignUp>:
- * Clerk needs it at account-creation time, not after.
+ * Role selection then Clerk SignUp with unsafeMetadata.role.
  */
 export default function RegisterPage() {
   const { isLoaded, isSignedIn } = useClerkAuth();
@@ -22,40 +18,59 @@ export default function RegisterPage() {
 
   if (!role) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-        <h1 className="text-2xl font-bold">I am signing up as a...</h1>
-        <div className="flex gap-4">
+      <AuthShell
+        title="Join Qadam"
+        subtitle="Choose how you will contribute — this shapes your workspace."
+      >
+        <div className="grid gap-3">
           <button
-            className="rounded-md bg-primary px-6 py-3 text-primary-foreground"
+            type="button"
+            className="qadam-card-interactive flex items-start gap-4 p-4 text-left hover:border-emerald-200"
             onClick={() => setRole("volunteer")}
           >
-            Volunteer
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <HeartHandshake className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block font-semibold tracking-tight text-slate-900">Volunteer</span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                Discover matched projects and log verified impact.
+              </span>
+            </span>
           </button>
           <button
-            className="rounded-md bg-secondary px-6 py-3 text-secondary-foreground"
+            type="button"
+            className="qadam-card-interactive flex items-start gap-4 p-4 text-left hover:border-emerald-200"
             onClick={() => setRole("ngo")}
           >
-            NGO
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+              <Building2 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block font-semibold tracking-tight text-slate-900">NGO</span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                Publish projects, recruit matches, and track attendance.
+              </span>
+            </span>
           </button>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      {/*
-        Role must be in unsafeMetadata at account-creation time so the
-        user.created webhook (and /auth/me reconcile) can promote it to
-        publicMetadata and create the volunteers/ngos row. Do not render
-        <SignUp> before role is chosen.
-      */}
-      <SignUp
-        signInUrl="/login"
-        forceRedirectUrl="/"
-        fallbackRedirectUrl="/"
-        unsafeMetadata={{ role }}
-      />
-    </div>
+    <AuthShell
+      title={role === "ngo" ? "Create your NGO account" : "Create your volunteer account"}
+      subtitle="Secure sign-up powered by Clerk."
+    >
+      <div className="flex justify-center [&_.cl-rootBox]:w-full [&_.cl-card]:shadow-none [&_.cl-card]:border-0">
+        <SignUp
+          signInUrl="/login"
+          forceRedirectUrl="/"
+          fallbackRedirectUrl="/"
+          unsafeMetadata={{ role }}
+        />
+      </div>
+    </AuthShell>
   );
 }
