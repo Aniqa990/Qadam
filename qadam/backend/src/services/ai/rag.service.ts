@@ -19,8 +19,12 @@ import * as llm from "./llm.service";
 
 // -- Config --------------------------------------------------------------------
 
-/** Minimum cosine similarity to consider a chunk relevant. */
-const RAG_SIMILARITY_THRESHOLD = 0.45;
+/**
+ * Minimum cosine similarity to consider a chunk relevant.
+ * MiniLM cosine scores for on-topic Q↔chunk pairs often land ~0.25–0.55;
+ * 0.45 was filtering valid hits to an empty set.
+ */
+const RAG_SIMILARITY_THRESHOLD = 0.28;
 
 /** Maximum number of chunks to retrieve per query. */
 const RAG_MAX_CHUNKS = 5;
@@ -42,13 +46,26 @@ export interface ChatResponse {
   sources: ChatSource[];
 }
 
+type MatchedChunk = {
+  chunk_id: string;
+  content: string;
+  document_id: string;
+  similarity: number;
+  ngo_id?: string;
+};
+
 // -- System prompts ------------------------------------------------------------
 
 const SHARED_SYSTEM =
   "You are Qadam Assistant, a helpful guide for a volunteer platform " +
   "connecting NGOs with volunteers. Be concise, warm, and factual. " +
   "Never invent information. If you cannot answer from the provided " +
-  "context, say so clearly.";
+  "context, say so clearly. " +
+  "Format answers for a chat bubble: short paragraphs, optional bullet " +
+  "lists with '- ' markers, and **bold** only for key terms. " +
+  "Do not put bare file names on their own line. Cite sources once in " +
+  "prose (e.g. 'According to HopeReach Foundation's rural education " +
+  "framework…') — the UI already shows source chips separately.";
 
 const NGO_SYSTEM =
   `${SHARED_SYSTEM} ` +
@@ -56,8 +73,7 @@ const NGO_SYSTEM =
   "in the retrieved knowledge-base chunks provided below. If the chunks do " +
   "not contain enough information to answer the question, respond exactly: " +
   '"The available knowledge base does not contain enough information to ' +
-  'answer this question." ' +
-  "Cite the source file name when referencing specific information.";
+  'answer this question."';
 
 const VOLUNTEER_SYSTEM =
   `${SHARED_SYSTEM} ` +
@@ -66,8 +82,8 @@ const VOLUNTEER_SYSTEM =
   "If the context does not contain enough information, say so clearly. " +
   "You may also answer general platform questions (how to register, how " +
   "matching works, etc.) from your own knowledge. " +
-  "When citing information from NGO documents, mention the NGO name and " +
-  "document file name.";
+  "When drawing on NGO documents, name the organization naturally in the " +
+  "sentence — do not append raw .pdf filenames at the end.";
 
 // -- Public API ----------------------------------------------------------------
 
@@ -85,6 +101,127 @@ export async function chatAssistant(
   return chatForVolunteer(message);
 }
 
+// -- Vector search helpers -----------------------------------------------------
+
+function formatEmbeddingForRpc(embedding: number[]): string {
+  // pgvector accepts the canonical text form "[0.1,0.2,...]".
+  return `[${embedding.join(",")}]`;
+}
+
+/**
+ * NGO-scoped RAG retrieval via match_knowledge_chunks.
+ * Always requires a real NGO UUID — never omit ngo_uuid (NULL filter
+ * matches zero rows in SQL because ngo_id = NULL is unknown).
+ */
+async function searchNgoKnowledgeChunks(
+  ngoId: string,
+  questionEmbedding: number[]
+): Promise<MatchedChunk[]> {
+  if (!ngoId || typeof ngoId !== "string") {
+    throw new AppError(
+      "NGO identity is required for knowledge search",
+      401,
+      "AUTHENTICATION_ERROR"
+    );
+  }
+
+  const queryEmbedding = formatEmbeddingForRpc(questionEmbedding);
+  const params = {
+    query_embedding: queryEmbedding,
+    ngo_uuid: ngoId,
+    match_threshold: RAG_SIMILARITY_THRESHOLD,
+    match_count: RAG_MAX_CHUNKS,
+  };
+
+  console.log("[RAG] match_knowledge_chunks request", {
+    ngo_uuid: params.ngo_uuid,
+    match_threshold: params.match_threshold,
+    match_count: params.match_count,
+    embeddingDimensions: questionEmbedding.length,
+  });
+
+  const { data: chunks, error } = await supabase.rpc("match_knowledge_chunks", params);
+
+  const matched = (chunks ?? []) as MatchedChunk[];
+
+  console.log("[RAG] match_knowledge_chunks response", {
+    ngo_uuid: params.ngo_uuid,
+    chunkCount: matched.length,
+    topSimilarity: matched[0]?.similarity ?? null,
+    error: error?.message ?? null,
+  });
+
+  if (error) {
+    logger.error("RAG chunk retrieval failed", {
+      error: error.message,
+      ngoId,
+      embeddingDimensions: questionEmbedding.length,
+    });
+    throw new AppError(
+      "Failed to search the knowledge base. Please try again.",
+      500,
+      "RAG_RETRIEVAL_ERROR"
+    );
+  }
+
+  if (matched.length === 0) {
+    // Distinguish "no docs for this NGO" vs "docs exist but below threshold".
+    const { count, error: countError } = await supabase
+      .from("knowledge_chunks")
+      .select("id", { count: "exact", head: true })
+      .eq("ngo_id", ngoId);
+
+    console.log("[RAG] zero hits diagnostic", {
+      ngo_uuid: ngoId,
+      storedChunkCount: countError ? null : count,
+      countError: countError?.message ?? null,
+      match_threshold: RAG_SIMILARITY_THRESHOLD,
+    });
+  }
+
+  return matched;
+}
+
+/** Cross-NGO public knowledge search for volunteer callers. */
+async function searchPublicKnowledgeChunks(
+  questionEmbedding: number[]
+): Promise<MatchedChunk[]> {
+  const queryEmbedding = formatEmbeddingForRpc(questionEmbedding);
+  const params = {
+    query_embedding: queryEmbedding,
+    match_threshold: RAG_SIMILARITY_THRESHOLD,
+    match_count: RAG_MAX_CHUNKS,
+  };
+
+  console.log("[RAG] match_public_knowledge request", {
+    match_threshold: params.match_threshold,
+    match_count: params.match_count,
+    embeddingDimensions: questionEmbedding.length,
+  });
+
+  const { data: knowledgeChunks, error } = await supabase.rpc(
+    "match_public_knowledge",
+    params
+  );
+
+  const matched = (knowledgeChunks ?? []) as MatchedChunk[];
+
+  console.log("[RAG] match_public_knowledge response", {
+    chunkCount: matched.length,
+    topSimilarity: matched[0]?.similarity ?? null,
+    error: error?.message ?? null,
+  });
+
+  if (error) {
+    logger.warn("Public knowledge search failed; continuing with projects only", {
+      error: error.message,
+    });
+    return [];
+  }
+
+  return matched;
+}
+
 // -- NGO path (RAG) ------------------------------------------------------------
 
 async function chatForNgo(
@@ -95,28 +232,7 @@ async function chatForNgo(
   const questionEmbedding = await generateEmbedding(message);
 
   // 2. pgvector similarity search scoped to this NGO's chunks.
-  const { data: chunks, error } = await supabase.rpc("match_knowledge_chunks", {
-    query_embedding: JSON.stringify(questionEmbedding),
-    ngo_uuid: ngoId,
-    match_threshold: RAG_SIMILARITY_THRESHOLD,
-    match_count: RAG_MAX_CHUNKS,
-  });
-
-  if (error) {
-    logger.error("RAG chunk retrieval failed", { error: error.message });
-    throw new AppError(
-      "Failed to search the knowledge base. Please try again.",
-      500,
-      "RAG_RETRIEVAL_ERROR"
-    );
-  }
-
-  const matchedChunks = (chunks ?? []) as {
-    chunk_id: string;
-    content: string;
-    document_id: string;
-    similarity: number;
-  }[];
+  const matchedChunks = await searchNgoKnowledgeChunks(ngoId, questionEmbedding);
 
   // 3. If nothing relevant was found, return an explicit fallback.
   if (matchedChunks.length === 0) {
@@ -185,22 +301,7 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     .limit(VOLUNTEER_CONTEXT_PROJECTS);
 
   // 3. Search public knowledge chunks across ALL NGOs via pgvector.
-  const { data: knowledgeChunks } = await supabase.rpc(
-    "match_public_knowledge",
-    {
-      query_embedding: JSON.stringify(questionEmbedding),
-      match_threshold: RAG_SIMILARITY_THRESHOLD,
-      match_count: RAG_MAX_CHUNKS,
-    }
-  );
-
-  const matchedChunks = (knowledgeChunks ?? []) as {
-    chunk_id: string;
-    content: string;
-    document_id: string;
-    ngo_id: string;
-    similarity: number;
-  }[];
+  const matchedChunks = await searchPublicKnowledgeChunks(questionEmbedding);
 
   // 4. Resolve NGO names and document file names.
   const ngoIds = [
@@ -210,7 +311,7 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
         .filter(Boolean),
       ...matchedChunks.map((c) => c.ngo_id).filter(Boolean),
     ]),
-  ];
+  ] as string[];
   const { data: ngos } = ngoIds.length
     ? await supabase.from("ngos").select("id, name").in("id", ngoIds)
     : { data: [] };
@@ -270,7 +371,8 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     const knowledgeText = matchedChunks
       .map((c, i) => {
         const ngoName =
-          ngoNameMap.get(docNgoMap.get(c.document_id) ?? c.ngo_id) ?? "Unknown NGO";
+          ngoNameMap.get(docNgoMap.get(c.document_id) ?? c.ngo_id ?? "") ??
+          "Unknown NGO";
         const fileName = fileNameMap.get(c.document_id) ?? "Unknown document";
         return `[Knowledge ${i + 1} — ${ngoName}: ${fileName}]\n${c.content}`;
       })
