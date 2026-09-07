@@ -5,9 +5,13 @@ export const aiConfig = {
     apiKey: env.GEMINI_API_KEY,
     model: env.GEMINI_MODEL,
   },
-  qwen: {
-    apiKey: env.DASHSCOPE_API_KEY,
-    model: env.QWEN_MODEL,
+  groq: {
+    apiKey: env.GROQ_API_KEY,
+    model: env.GROQ_MODEL,
+  },
+  openRouter: {
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.OPENROUTER_MODEL,
   },
   huggingFace: {
     token: env.HF_TOKEN,

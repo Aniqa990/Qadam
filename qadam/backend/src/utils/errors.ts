@@ -52,9 +52,9 @@ export class ConflictError extends AppError {
 /**
  * Codes match ai-architecture.md's AIProviderError contract exactly
  * (TIMEOUT / RATE_LIMITED / MALFORMED_RESPONSE / EMPTY_RESPONSE / NETWORK_ERROR).
- * Thrown by services/ai/gemini.service.ts, qwen.service.ts, and
+ * Thrown by services/ai/gemini.service.ts, groq.service.ts, openrouter.service.ts, and
  * embedding.service.ts (Hugging Face); llm.service.ts catches this for
- * Gemini/Qwen fallback, while embedding.service callers log-and-continue
+ * Gemini/Groq/OpenRouter fallback, while embedding.service callers log-and-continue
  * so an HF outage never blocks core writes.
  */
 export type AIProviderErrorCode =
@@ -64,7 +64,7 @@ export type AIProviderErrorCode =
   | "EMPTY_RESPONSE"
   | "NETWORK_ERROR";
 
-export type AIProvider = "gemini" | "qwen" | "huggingface";
+export type AIProvider = "gemini" | "groq" | "openrouter" | "huggingface";
 
 export class AIProviderError extends Error {
   code: AIProviderErrorCode;

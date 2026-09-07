@@ -20,8 +20,10 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
   GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
 
-  DASHSCOPE_API_KEY: z.string().min(1).optional().default("placeholder"),
-  QWEN_MODEL: z.string().default("qwen-turbo"),
+  GROQ_API_KEY: z.string().min(1).optional().default("placeholder"),
+  GROQ_MODEL: z.string().default("llama-3.1-8b-instant"),
+  OPENROUTER_API_KEY: z.string().min(1).optional().default("placeholder"),
+  OPENROUTER_MODEL: z.string().default("openrouter/auto"),
 
   HF_TOKEN: z.string().min(1, "HF_TOKEN is required"),
   HF_EMBEDDING_MODEL: z.string().default("sentence-transformers/all-MiniLM-L6-v2"),

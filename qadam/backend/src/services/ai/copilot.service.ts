@@ -6,7 +6,7 @@ import * as llm from "./llm.service";
 /**
  * Owns the Copilot prompt construction and response validation
  * (ai-architecture.md "Project Copilot Flow"). Calls llm.service.ts for
- * text generation; never calls Gemini/Qwen directly.
+ * text generation; never calls an LLM provider directly.
  *
  * The Zod schema matches ai-architecture.md's CopilotDraftSchema exactly.
  * If validation fails, retry once with a stricter prompt before surfacing
