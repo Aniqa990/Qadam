@@ -18,7 +18,8 @@ vi.mock("../../src/config/ai", () => ({
       embeddingModel: "sentence-transformers/all-MiniLM-L6-v2",
     },
     gemini: { apiKey: "test", model: "test" },
-    qwen: { apiKey: "test", model: "test" },
+    groq: { apiKey: "test", model: "test" },
+    openRouter: { apiKey: "test", model: "test" },
     bigDataCloud: { apiKey: "placeholder" },
   },
 }));

@@ -1,6 +1,6 @@
 /**
  * Small shared fetch wrapper for outbound calls to external providers
- * (Gemini, Qwen/DashScope, Hugging Face, BigDataCloud). Centralizing this
+ * (Gemini, Groq, OpenRouter, Hugging Face, BigDataCloud). Centralizing this
  * keeps timeout/error handling consistent across services/ai/*.
  */
 export async function httpJson<T>(

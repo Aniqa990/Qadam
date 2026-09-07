@@ -151,7 +151,7 @@ async function chatForNgo(
     `Context (retrieved knowledge-base chunks):\n${contextText}\n\n` +
     `Question: ${message}`;
 
-  // 6. Call LLM (Gemini first, Qwen fallback).
+  // 6. Call LLM (Gemini first, Groq then OpenRouter fallback).
   const answer = await callLLMSafely({
     prompt,
     systemInstruction: NGO_SYSTEM,
@@ -284,7 +284,7 @@ async function chatForVolunteer(message: string): Promise<ChatResponse> {
     `Public data:\n${contextText}\n\n` +
     `Question: ${message}`;
 
-  // 7. Call LLM (Gemini first, Qwen fallback).
+  // 7. Call LLM (Gemini first, Groq then OpenRouter fallback).
   const answer = await callLLMSafely({
     prompt,
     systemInstruction: VOLUNTEER_SYSTEM,
