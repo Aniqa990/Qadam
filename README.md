@@ -1,5 +1,7 @@
 # Qadam
 
+![Qadam logo](qadam/frontend/src/logo.jpeg)
+
 AI-powered social-good volunteer platform connecting NGOs with suitable
 volunteers and measuring community impact.
 
@@ -28,32 +30,49 @@ structure, tooling, and configuration only — no application features yet.
 ### 2. Install dependencies
 
 ```bash
-cd backend && npm install
+cd qadam/backend && npm install
 cd ../frontend && npm install
 ```
+
+If your npm version reports a peer-dependency resolution error, repeat the
+install with `npm install --legacy-peer-deps` in the affected app directory.
+The committed lockfiles should be preferred for reproducible installs.
 
 ### 3. Configure environment variables
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
+cp qadam/backend/.env.example qadam/backend/.env
+cp qadam/frontend/.env.example qadam/frontend/.env
 ```
 
 Fill in the values. Never commit `.env` — see `AGENTS.md` for the full list
 of required variables and which ones must never reach the frontend.
 
+For a production frontend, set `VITE_CLERK_PUBLISHABLE_KEY` in Vercel. Keep
+all backend secrets in the backend deployment only. Set the backend's
+`CORS_ORIGIN` to the deployed frontend URL.
+
 ### 4. Run both apps
 
 ```bash
 # terminal 1
-cd backend && npm run dev
+cd qadam/backend && npm run dev
 
 # terminal 2
-cd frontend && npm run dev
+cd qadam/frontend && npm run dev
 ```
 
 - Backend: http://localhost:4000 (health check at `/api/health`)
 - Frontend: http://localhost:5173 (proxies `/api/*` to the backend)
+
+## Deployment
+
+- **Frontend:** [qadam-pakistan.vercel.app](https://qadam-pakistan.vercel.app)
+- **Backend:** deployed on DigitalOcean
+
+Configure the production environment variables from the example files in the
+corresponding deployment dashboards. Do not expose backend secrets through
+`VITE_` variables.
 
 ### 5. Verify Phase 1
 
