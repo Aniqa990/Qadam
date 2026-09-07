@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import EstablishRoleForm from "@/components/EstablishRoleForm";
 import { useAuth } from "@/hooks/useAuth";
 import LandingPage from "./LandingPage";
 
@@ -11,19 +12,26 @@ import LandingPage from "./LandingPage";
  *   prevent any layout flash.
  * - Signed-in users with a resolved role + completed onboarding are
  *   redirected instantly to their role-specific dashboard.
- * - Everyone else (not signed in, or still onboarding) sees the full
- *   public landing page.
+ * - Pending-role users (webhook miss / skipped register role pick) see
+ *   EstablishRoleForm instead of a 401 error.
+ * - Everyone else (not signed in) sees the full public landing page.
  */
 export default function HomePage() {
   const { isLoaded: clerkLoaded, isSignedIn } = useClerkAuth();
-  const { isResolving, role, onboardingComplete, error } = useAuth();
+  const { isResolving, role, status, onboardingComplete, error, establishRole } = useAuth();
 
   // Wait for Clerk to initialise — render nothing to prevent flash.
   if (!clerkLoaded) return null;
 
   // Authenticated user: wait for backend role resolution, then redirect.
   if (isSignedIn) {
-    if (isResolving) return null;
+    if (isResolving) {
+      return (
+        <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+          Setting up your account...
+        </div>
+      );
+    }
 
     if (error) {
       return (
@@ -31,6 +39,10 @@ export default function HomePage() {
           Could not load your account: {error}
         </div>
       );
+    }
+
+    if (status === "pending_role" || !role) {
+      return <EstablishRoleForm onSelect={establishRole} error={error} />;
     }
 
     if (role === "volunteer" && onboardingComplete) {
@@ -45,13 +57,6 @@ export default function HomePage() {
     if (role === "ngo") {
       return <Navigate to="/ngo/onboarding" replace />;
     }
-    // Signed in but role not yet resolved (e.g. webhook pending)
-    // — show a brief waiting state rather than the landing page.
-    return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        Setting up your account...
-      </div>
-    );
   }
 
   return <LandingPage />;

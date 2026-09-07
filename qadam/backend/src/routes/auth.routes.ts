@@ -1,7 +1,8 @@
 import { Router } from "express";
 import * as authController from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { resolveUserMiddleware } from "../middleware/resolveUser.middleware";
+import { validate } from "../middleware/validate.middleware";
+import { establishRoleSchema } from "../validators/auth.validator";
 
 const router = Router();
 
@@ -12,10 +13,22 @@ const router = Router();
 router.post("/webhook", authController.handleClerkWebhook);
 
 /**
- * Protected: standard pipeline from architecture.md - authenticate the
- * Clerk session, then resolve it to a volunteer/ngo identity.
+ * Protected but intentionally WITHOUT resolveUserMiddleware: a brand-new
+ * signup may not have publicMetadata.role yet. getMe self-heals from
+ * unsafeMetadata or returns status "pending_role" (200) instead of 401.
  */
-router.get("/me", authMiddleware, resolveUserMiddleware, authController.getMe);
+router.get("/me", authMiddleware, authController.getMe);
+
+/**
+ * One-time role claim when SignUp did not include unsafeMetadata.role.
+ * Only succeeds while publicMetadata.role is unset (or already matches).
+ */
+router.post(
+  "/establish-role",
+  authMiddleware,
+  validate(establishRoleSchema),
+  authController.establishRole
+);
 
 /**
  * POST /api/auth/logout - behind auth so only logged-in users can call it.

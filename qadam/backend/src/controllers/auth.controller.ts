@@ -1,20 +1,72 @@
 import type { NextFunction, Request, Response } from "express";
+import { clerkClient } from "../lib/clerk";
 import * as authService from "../services/auth.service";
 import { AuthenticationError } from "../utils/errors";
 import { sendSuccess } from "../utils/response";
+import type { EstablishRoleBody } from "../validators/auth.validator";
 
 /**
- * GET /api/auth/me - see api-contracts.md. Controller stays thin: reads
- * req.identity (set by auth.middleware -> resolveUser.middleware) and
- * shapes the response. No business logic here.
+ * GET /api/auth/me - see api-contracts.md. Uses authMiddleware only (not
+ * resolveUser) so a brand-new signup whose webhook has not finished yet
+ * gets a 200 with status "pending_role" instead of a 401. When
+ * unsafeMetadata.role is present, ensureProfileForClerkUser self-heals
+ * the DB row + publicMetadata before responding.
  */
 export async function getMe(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!req.identity) {
+    if (!req.auth) {
       throw new AuthenticationError();
     }
-    const { clerkUserId, email, role, profile } = req.identity;
-    return sendSuccess(res, { id: clerkUserId, email, role, profile });
+
+    const clerkUser = await clerkClient.users.getUser(req.auth.clerkUserId);
+    const resolved = await authService.ensureProfileForClerkUser(clerkUser);
+
+    if (!resolved) {
+      const email =
+        clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
+          ?.emailAddress ??
+        clerkUser.emailAddresses[0]?.emailAddress ??
+        "";
+      return sendSuccess(res, {
+        id: req.auth.clerkUserId,
+        email,
+        role: null,
+        profile: null,
+        status: "pending_role" as const,
+      });
+    }
+
+    return sendSuccess(res, {
+      id: req.auth.clerkUserId,
+      email: resolved.email,
+      role: resolved.role,
+      profile: resolved.profile,
+      status: "ready" as const,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/establish-role - one-time role claim when SignUp did not
+ * carry unsafeMetadata.role (or the user landed via a path that skipped
+ * /register). Rejects once publicMetadata.role is already set.
+ */
+export async function establishRole(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.auth) {
+      throw new AuthenticationError();
+    }
+    const { role } = req.body as EstablishRoleBody;
+    const resolved = await authService.establishRoleForClerkUser(req.auth.clerkUserId, role);
+    return sendSuccess(res, {
+      id: req.auth.clerkUserId,
+      email: resolved.email,
+      role: resolved.role,
+      profile: resolved.profile,
+      status: "ready" as const,
+    });
   } catch (err) {
     next(err);
   }

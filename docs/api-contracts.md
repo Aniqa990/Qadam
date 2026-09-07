@@ -51,26 +51,54 @@ Clerk owns sign-up, sign-in, session refresh, and logout in the frontend. The ba
 
 Get current authenticated user with role and profile.
 
-**Auth:** Required
+**Auth:** Required (Clerk session). Does **not** require an established role — newly signed-up users may receive `status: "pending_role"` instead of a 401.
 
-**Response (200):**
+**Response (200) — ready:**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "user_2abc...",
     "email": "user@example.com",
     "role": "volunteer",
     "profile": {
       "id": "uuid",
       "full_name": "Jane Doe",
       "onboarding_complete": true
-    }
+    },
+    "status": "ready"
   }
 }
 ```
 
-The `profile` field contains the volunteer or NGO profile object based on the user's role.
+**Response (200) — pending role** (no `publicMetadata.role` / recoverable `unsafeMetadata.role` yet):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_2abc...",
+    "email": "user@example.com",
+    "role": null,
+    "profile": null,
+    "status": "pending_role"
+  }
+}
+```
+
+The `profile` field contains the volunteer or NGO profile object based on the user's role when `status` is `"ready"`.
+
+### `POST /api/auth/establish-role`
+
+One-time role claim when sign-up did not carry `unsafeMetadata.role` (or the webhook/reconcile path could not recover it). Rejects with 409 if `publicMetadata.role` is already set to a different value.
+
+**Auth:** Required
+
+**Request:**
+```json
+{ "role": "volunteer" }
+```
+
+**Response (200):** same shape as `GET /api/auth/me` with `status: "ready"`.
 
 ## Volunteers Module — `/api/volunteers`
 
